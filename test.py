@@ -1,2 +1,3 @@
-print('Hello, Python.')
-print("Hi, Github")
+def main():
+    print('Hello, Python.')
+    print("Hi, Github")
