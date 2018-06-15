@@ -2,7 +2,7 @@ import multiprocessing as mp
 import cv2
 
 
-def queue_img_put(q, name, pwd, ip, channel=3):
+def queue_img_put(q, name, pwd, ip, channel=1):
     cap = cv2.VideoCapture("rtsp://%s:%s@%s//Streaming/Channels/%d" % (name, pwd, ip, channel))
     is_opened, frame = cap.read()
 
@@ -24,14 +24,16 @@ def queue_img_get(q, window_name):
             cv2.waitKey(1)
 
 
-def main():
+def run():
     user_name = "admin"
     user_pwd = "!QAZ2wsx3edc"
 
     camera_ip_l = [
-        "192.168.1.164",
-        "192.168.1.165",
-        "192.168.1.166",
+        # "192.168.1.164",
+        # "192.168.1.165",
+        # "192.168.1.166",
+        "192.168.1.169",
+        "192.168.1.170",
     ]
 
     mp.set_start_method(method='spawn')
@@ -58,5 +60,5 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    run()
 pass
