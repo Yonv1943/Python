@@ -14,14 +14,23 @@
       <content type="file-editors">
         <state>
           <leaf>
-            <file leaf-file-name="DEMO_camera_mp_queue_cv2.py" pinned="false" current-in-tab="true">
+            <file leaf-file-name="DEMO_camera_mp_queue_cv2.py" pinned="false" current-in-tab="false">
               <entry file="file://$PROJECT_DIR$/DEMO_camera_mp_queue_cv2.py">
                 <provider selected="true" editor-type-id="text-editor">
-                  <state relative-caret-position="493">
-                    <caret line="29" lean-forward="true" selection-start-line="29" selection-end-line="29" />
+                  <state relative-caret-position="153">
+                    <caret line="9" column="43" selection-start-line="9" selection-start-column="43" selection-end-line="9" selection-end-column="43" />
                     <folding>
                       <element signature="e#0#28#0" expanded="true" />
                     </folding>
+                  </state>
+                </provider>
+              </entry>
+            </file>
+            <file leaf-file-name="DEMO_cameras_rtsp_cv2_VideoCapture.py" pinned="false" current-in-tab="true">
+              <entry file="file://$PROJECT_DIR$/../../Demo/DEMO_cameras_rtsp_cv2_VideoCapture.py">
+                <provider selected="true" editor-type-id="text-editor">
+                  <state relative-caret-position="51">
+                    <caret line="3" column="16" selection-start-line="3" selection-start-column="16" selection-end-line="3" selection-end-column="16" />
                   </state>
                 </provider>
               </entry>
@@ -33,23 +42,11 @@
   </component>
   <component name="FileEditorManager">
     <leaf>
-      <file leaf-file-name="main.py" pinned="false" current-in-tab="true">
+      <file leaf-file-name="main.py" pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/main.py">
           <provider selected="true" editor-type-id="text-editor">
             <state relative-caret-position="85">
               <caret line="5" lean-forward="true" selection-start-line="5" selection-end-line="5" />
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file leaf-file-name="TUTR-multiprocessing.py" pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/TUTR-multiprocessing.py">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="374">
-              <caret line="109" lean-forward="true" selection-start-line="109" selection-end-line="109" />
-              <folding>
-                <element signature="e#0#9#0" expanded="true" />
-              </folding>
             </state>
           </provider>
         </entry>
@@ -63,7 +60,7 @@
           </provider>
         </entry>
       </file>
-      <file leaf-file-name="DEMO_cameras_rtsp_cv2_VideoCapture.py" pinned="false" current-in-tab="false">
+      <file leaf-file-name="DEMO_cameras_rtsp_cv2_VideoCapture.py" pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/DEMO_cameras_rtsp_cv2_VideoCapture.py">
           <provider selected="true" editor-type-id="text-editor">
             <state relative-caret-position="187">
@@ -81,6 +78,7 @@
         <option value="$PROJECT_DIR$/DEMO_cameras_rtsp_cv2_VideoCapture.py" />
         <option value="$PROJECT_DIR$/main.py" />
         <option value="$PROJECT_DIR$/DEMO_camera_mp_queue_cv2.py" />
+        <option value="$PROJECT_DIR$/../../Demo/DEMO_cameras_rtsp_cv2_VideoCapture.py" />
       </list>
     </option>
   </component>
@@ -203,13 +201,6 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/DEMO_cameras_rtsp_cv2_VideoCapture.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="187">
-          <caret line="11" lean-forward="true" selection-start-line="11" selection-end-line="11" />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/TUTR-multiprocessing.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="374">
@@ -227,13 +218,32 @@
         </state>
       </provider>
     </entry>
+    <entry file="file://$PROJECT_DIR$/DEMO_cameras_rtsp_cv2_VideoCapture.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="187">
+          <caret line="11" lean-forward="true" selection-start-line="11" selection-end-line="11" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/../../Demo/DEMO_camera_mp_queue_cv2.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="-254" />
+      </provider>
+    </entry>
     <entry file="file://$PROJECT_DIR$/DEMO_camera_mp_queue_cv2.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="493">
-          <caret line="29" lean-forward="true" selection-start-line="29" selection-end-line="29" />
+        <state relative-caret-position="153">
+          <caret line="9" column="43" selection-start-line="9" selection-start-column="43" selection-end-line="9" selection-end-column="43" />
           <folding>
             <element signature="e#0#28#0" expanded="true" />
           </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/../../Demo/DEMO_cameras_rtsp_cv2_VideoCapture.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="51">
+          <caret line="3" column="16" selection-start-line="3" selection-start-column="16" selection-end-line="3" selection-end-column="16" />
         </state>
       </provider>
     </entry>

@@ -1,5 +1,33 @@
 import cv2
 
+"""
+OpenCV tutorial
+https://docs.opencv.org/3.4.1/dd/d43/tutorial_py_video_display.html
+
+Ubuntu下使用Python-opencv获取海康威视RTSP码流教程
+https://blog.csdn.net/hui3909/article/details/53435379
+
+XviD-1.3.5
+http://www.linuxfromscratch.org/blfs/view/svn/multimedia/xvid.html
+Download (HTTP): http://downloads.xvid.org/downloads/xvidcore-1.3.5.tar.gz
+Download size: 804 KB
+
+
+Ubuntu16.04下安装FFmpeg（超简单版）
+sudo add-apt-repository ppa:djcj/hybrid &&\
+sudo apt-get update &&\
+sudo apt-get install ffmpeg
+
+
+Can only use IE to open below website to the HIKVISION Web Camera preview page
+Can not use Chrome either FireFox, even Edge cannot open it
+"http://192.168.1.64/doc/page/preview.asp"
+
+
+Python：从subprocess运行的子进程中实时获取输出
+https://blog.csdn.net/cnweike/article/details/73620250
+"""
+
 
 def video_capture_simplify(name, pwd, ip):
     cap = cv2.VideoCapture("rtsp://%s:%s@%s//Streaming/Channels/1" % (name, pwd, ip))
