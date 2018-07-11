@@ -3,14 +3,6 @@ import time
 import multiprocessing as mp
 from multiprocessing import Pool, Process, Pipe, Lock, Value, Array, Manager
 
-"""
-Learning how to use [multiprocessing] in Python. (Official)
-https://docs.python.org/3.6/library/multiprocessing.html
-
-multiprocessing Process join run, 李皮筋的技术博客
-https://www.cnblogs.com/lipijin/p/3709903.html
-"""
-
 
 def func(x):
     print("||| Sleep time:", x)
@@ -80,8 +72,8 @@ if __name__ == '__main__':
     # print(num.value)
     # print(arr[:])
 
-    # with Pool(2) as p0:
-    #     print(p0.map(func, [3, 1, 2]))
+    with Pool(2) as p0:
+        print(p0.map(func, [3, 1, 2]))
 
     # p1 = Process(target=func, args=(1,))
     # p1.start()
@@ -114,3 +106,11 @@ if __name__ == '__main__':
 
 print("||| Total Time:", time.time() - timer)
 pass
+
+"""
+Learning how to use [multiprocessing] in Python. (Official)
+https://docs.python.org/3.6/library/multiprocessing.html
+
+multiprocessing Process join run, 李皮筋的技术博客
+https://www.cnblogs.com/lipijin/p/3709903.html
+"""
