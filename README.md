@@ -3,7 +3,7 @@
 
 git clone https://github.com/Yonv1943/Python
 
-git config --global user.email "178320049@qq.com"
+git config --global user.email "*********@qq.com"
 
 git config --global user.name "Yonv"
 
