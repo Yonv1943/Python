@@ -5,21 +5,12 @@ import os
 
 """
 2018-06-03 Yonv1943
-2018-06-08 stable compare the real time frames, and draw the contours of the moving objects
+2018-06-08 stable, compare the real time frames, and draw the contours of the moving objects
 2018-07-02 setattr(), if is_opened
-2018-10-19 auto_canny
+2018-11-24 polygon 
+"""
 
 
-def auto_canny(image, sigma=0.33):
-	# compute the median of the single channel pixel intensities
-	v = np.median(image)
- 
-	lower = int(max(0, (1.0 - sigma) * v))
-	upper = int(min(255, (1.0 + sigma) * v))
-	edged = cv2.Canny(image, lower, upper)
-	return edged
-    
-    
 class DrawROI(object):  # draw Region of Interest
     def __init__(self, img):
         self.img = img

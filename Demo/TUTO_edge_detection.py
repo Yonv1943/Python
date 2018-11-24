@@ -1,11 +1,14 @@
 import cv2
 import numpy as np
 
-'''REFER: https://hub.packtpub.com/opencv-detecting-edges-lines-shapes/'''
-'''Yonv1943 2018-06-30 '''
-'''Yonv1943 2018-07-01 comment to test.png'''
-'''Yonv1943 2018-07-01 gray in threshold, hierarchy'''
-'''Yonv1943 2018-07-01 draw_approx_hull_polygon() no [for loop]'''
+"""
+REFER: https://hub.packtpub.com/opencv-detecting-edges-lines-shapes/
+2018-06-30 Yonv1943
+2018-07-01 comment to test.png
+2018-07-01 gray in threshold, hierarchy
+2018-07-01 draw_approx_hull_polygon() no [for loop]
+2018-11-24 
+"""
 
 
 def draw_contours(img, cnts):  # conts = contours
@@ -37,9 +40,14 @@ def draw_approx_hull_polygon(img, cnts):
 
     cv2.drawContours(img, cnts, -1, (255, 0, 0), 2)  # blue
 
-    epsilion = img.shape[0]/32
-    approxes = [cv2.approxPolyDP(cnt, epsilion, True) for cnt in cnts]
-    cv2.polylines(img, approxes, True, (0, 255, 0), 2)  # green
+    min_side_len = img.shape[0] / 32  # 多边形边长的最小值 the minimum side length of polygon
+    min_poly_len = img.shape[0] / 16  # 多边形周长的最小值 the minimum round length of polygon
+    min_side_num = 3  # 多边形边数的最小值
+    approxs = [cv2.approxPolyDP(cnt, min_side_len, True) for cnt in cnts]  # 以最小边长为限制画出多边形
+    approxs = [approx for approx in approxs if cv2.arcLength(approx, True) > min_poly_len]  # 筛选出周长大于 min_poly_len 的多边形
+    approxs = [approx for approx in approxs if len(approx) > min_side_num]  # 筛选出边长数大于 min_side_num 的多边形
+    # Above codes are written separately for the convenience of presentation.
+    cv2.polylines(img, approxs, True, (0, 255, 0), 2)  # green
 
     hulls = [cv2.convexHull(cnt) for cnt in cnts]
     cv2.polylines(img, hulls, True, (0, 0, 255), 2)  # red
@@ -57,7 +65,7 @@ def draw_approx_hull_polygon(img, cnts):
 
 
 def run():
-    image = cv2.imread('test.png')  # a black objects on white image is better
+    image = cv2.imread('Demo/test_edge_detection.jpg')  # a black objects on white image is better
 
     # gray = cv2.cvtColor(image.copy(), cv2.COLOR_BGR2GRAY)
     # ret, thresh = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY)
@@ -89,4 +97,3 @@ def run():
 if __name__ == '__main__':
     run()
 pass
-

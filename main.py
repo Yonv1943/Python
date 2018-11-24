@@ -1,5 +1,5 @@
-from test import main
+# from test import main
+# main()
+from Demo.TUTO_edge_detection import run
 
-if __name__ == '__main__':
-    main()
-pass
+run()
