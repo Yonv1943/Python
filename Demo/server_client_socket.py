@@ -6,7 +6,7 @@ import pickle
 
 """
 Source: Yonv1943 2019-05-04
-https://github.com/Yonv1943/Python/upload/master/Demo
+https://github.com/Yonv1943/Python/upload/master/Demo/server_client_socket.py
 
 Python send and receive objects through Sockets - Sudheesh Singanamalla
 https://stackoverflow.com/a/47396267/9293137

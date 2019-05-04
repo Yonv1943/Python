@@ -2,7 +2,7 @@ import ftplib
 
 """
 Source: Yonv1943 2019-05-04
-https://github.com/Yonv1943/Python/upload/master/Demo
+https://github.com/Yonv1943/Python/upload/master/Demo/ftp_upload_download.py
 
 Python ftplib Tutorial
 https://pythonprogramming.net/ftp-transfers-python-ftplib/
