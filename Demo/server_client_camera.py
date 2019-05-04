@@ -7,6 +7,7 @@ import gzip
 """
 Source: Yonv1943 2019-05-04
 https://github.com/Yonv1943/Python/upload/master/Demo/server_client_camera.py
+https://zhuanlan.zhihu.com/p/64534116
 
 Pickle EOFError: Ran out of input when recv from a socket - Antti Haapala
 from multiprocessing.connection import Client
