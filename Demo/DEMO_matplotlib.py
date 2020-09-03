@@ -169,18 +169,18 @@ def plot__error_std(ys, xs=None, k=8):
     plt.show()
 
 
-def plot__error_plot_round(ys, xs=None, k=8):
+def plot__error_plot_round(ys, xs=None, k=8):  # 2020-09-03
     """
     xs = np.linspace(0, 2, 64)
     ys = np.sin(xs)
     ys[rd.randint(64, size=8)] = 0
-
     plot__error_plot_round(ys, xs, k=8)
     """
+
     if xs is None:
         xs = np.arange(ys.shape[0])
 
-    ys_pad = np.pad(ys, pad_width=(k, 0), mode='edge')
+    ys_pad = np.pad(ys, pad_width=(k // 2, k // 2), mode='edge')
     ys_avg = list()
     ys_std1 = list()
     ys_std2 = list()
@@ -191,13 +191,16 @@ def plot__error_plot_round(ys, xs=None, k=8):
         ys_std1.append((ys_part[ys_part > avg] - avg).mean())
         ys_std2.append((ys_part[ys_part <= avg] - avg).mean())
 
+    # if is_padding:
+    #     plt.plot(xs[:-k//2], ys[:-k//2], color='royalblue')
+    # else:
     plt.plot(xs, ys, color='royalblue')
 
-    plt.plot(xs - xs[k // 2], ys_avg, color='lightcoral')
+    plt.plot(xs, ys_avg, color='lightcoral')
     ys_avg = np.array(ys_avg)
     ys_std1 = np.array(ys_std1)
     ys_std2 = np.array(ys_std2)
-    plt.fill_between(xs - xs[k // 2], ys_avg + ys_std1, ys_avg + ys_std2, facecolor='lightcoral', alpha=0.3)
+    plt.fill_between(xs, ys_avg + ys_std1, ys_avg + ys_std2, facecolor='lightcoral', alpha=0.3)
     plt.show()
 
 
