@@ -1,6 +1,6 @@
-import time
-import multiprocessing as mp
-import cv2
+import time # This statement imports time
+import multiprocessing as mp #This statement imports mp module from multiprocession module
+import cv2 # This statement imports cv2 module
 
 """
 Source: Yonv1943 2018-06-17
@@ -18,7 +18,7 @@ https://blog.csdn.net/xiejiashu/article/details/71786187
 """
 
 
-def image_put(q, user, pwd, ip, channel=1):
+def image_put(q, user, pwd, ip, channel=1): # This statement makes a function named image_put
     cap = cv2.VideoCapture("rtsp://%s:%s@%s//Streaming/Channels/%d" % (user, pwd, ip, channel))
     if cap.isOpened():
         print('HIKVISION')
@@ -31,7 +31,7 @@ def image_put(q, user, pwd, ip, channel=1):
         q.get() if q.qsize() > 1 else time.sleep(0.01)
 
 
-def image_get(q, window_name):
+def image_get(q, window_name): # This statement makes a function named image_get
     cv2.namedWindow(window_name, flags=cv2.WINDOW_FREERATIO)
     while True:
         frame = q.get()
