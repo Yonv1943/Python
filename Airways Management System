@@ -1,0 +1,237 @@
+# Airways Management System
+
+import pickle     # we are using pickle bec it operates binary files (will increase performance of program).
+import os         # we are using os to handle some operation with file like renaming and deleting.
+import pyttsx3    # this is Python text-to-speech which gives a voice to our Airways Management System.
+
+flight_det = {}
+
+def speak(line):
+    '''it will give a female voice to Every line given as argument(parameter)'''
+    voice_id = "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Speech\Voices\Tokens\TTS_MS_EN-US_ZIRA_11.0"
+    voice = pyttsx3.init()
+    voice.setProperty('voice', voice_id)
+    voice.say(line)
+    voice.runAndWait()
+
+def say(line):
+    '''it is Same as speak() but dude it speaks in Male voice'''
+    voice_id = "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Speech\Voices\Tokens\TTS_MS_EN-US_DAVID_11.0"
+    voice = pyttsx3.init()
+    voice.setProperty('voice', voice_id)
+    voice.say(line)
+    voice.runAndWait()
+
+
+def write_data():
+    ''' It will add flight details(data) in flight.dat '''
+    with open("flight.dat", "ab") as fdata:
+        say('Helloo, Please Write the Number of Flights you want write in file')
+        No_Of_flight = int(input("Enter the Number of Flights : "))
+        for num in range(No_Of_flight):
+            speak(f'Please Write, {num+1} flight Number')
+            flight_det["flightNo"] = int(input(f"\nPlease Enter {num + 1} Flight Number : "))
+            speak(f'Please Write Name of Flight-{flight_det["flightNo"]}')
+            flight_det["fname"] = input(f'Enter Name of Flight-{flight_det["flightNo"]} : ')
+            speak(f'Please Write Fare of {flight_det["fname"]}-{flight_det["flightNo"]}')
+            flight_det["fare"] = int(input(f'Enter Fare of {flight_det["fname"]}-{flight_det["flightNo"]} : '))
+            pickle.dump(flight_det, fdata)
+
+
+def show_data():
+    ''' it will Display all the Flights Data inside flight.dat file'''
+    try:
+        with open("flight.dat", "rb") as fdata:
+            while True:
+                print(f'{  pickle.load(fdata)}')
+    except Exception:
+        pass
+
+
+def del_data():
+    speak('Please Enter Flight Number to delete its DATA')
+    flightNo = int(input("\nPlease Enter Flight Number to delete its DATA : "))
+    try:
+        with open("flight.dat", "rb") as fdata1:
+            with open("temp.dat", "ab") as fdata2:
+                data = pickle.load(fdata1)
+                if data["flightNo"] == flightNo:
+                    pass
+                else:
+                    pickle.dump(data, fdata2)
+    except Exception:
+        say("Error : There is no Data in flight.dat")
+        print("Error : There is no Data in flight.dat")
+    os.remove("flight.dat")
+    os.rename("temp.dat", "flight.dat")
+
+    try:
+        with open("flight.dat", "rb") as fdata:
+            while True:
+                speak("Here's the Record of Flights after Deletion")
+                print(f'\n Record of Flights after Deletion :\n  {pickle.load(fdata)}')
+    except Exception:
+        pass
+
+def search():
+    try:
+        with open('flight.dat', 'rb') as fdata:
+            speak(" Please Enter Flight Number to Search its Details")
+            fsearch = int(input("\nEnter Flight Number to Search : "))
+            datafound = 0
+            while True:
+                data = pickle.load(fdata)
+                if data['flightNo'] == fsearch:
+                    datafound = 1
+                    speak("Here's the Search Details")
+                    print(f'Search Result : \n  {data}')
+                    say(data)
+                    break
+            if datafound == 0:
+                speak(f'Details of flight-{fsearch} was NOT FOUND')
+                print(f"\n ! Details of flight-{fsearch} was NOT FOUND !")
+    except Exception:
+        print("Error : There is no Data in flight.dat")
+
+
+def update_data():
+    with open("file.dat", "rb") as fdata:
+        with open("temp.dat", "wb") as fdata2:
+            speak("Enter Flight Number to Update")
+            flightNo = int(input("Enter Flight Number to Update : "))
+            try:
+                while True:
+                    data = pickle.load(fdata)
+                    if data["flightNo"] == flightNo:
+                        print("Enter Flight New Details : \n")
+                        data["flightNo"] = int(input("Enter Flight Number : "))
+                        data["fname"] = input("Enter Flight's Name : ")
+                        data["fare"] = int(input("Enter the Fare : "))
+                        pickle.dump(data, fdata2)
+                    else:
+                        pickle.dump(data, fdata2)
+            except EOFError:
+                pass
+            os.remove("flight.dat")
+            os.rename("temp.dat", "flight.dat")
+
+
+def flower():
+    import turtle
+    turtle.penup()
+    turtle.left(90)
+    turtle.fd(200)
+    turtle.pendown()
+    turtle.right(90)
+    turtle.fillcolor("red")
+    turtle.begin_fill()
+    turtle.circle(10, 180)
+    turtle.circle(25, 110)
+    turtle.left(50)
+    turtle.circle(60, 45)
+    turtle.circle(20, 170)
+    turtle.right(24)
+    turtle.fd(30)
+    turtle.left(10)
+    turtle.circle(30, 110)
+    turtle.fd(20)
+    turtle.left(40)
+    turtle.circle(90, 70)
+    turtle.circle(30, 150)
+    turtle.right(30)
+    turtle.fd(15)
+    turtle.circle(80, 90)
+    turtle.left(15)
+    turtle.fd(45)
+    turtle.right(165)
+    turtle.fd(20)
+    turtle.left(155)
+    turtle.circle(150, 80)
+    turtle.left(50)
+    turtle.circle(150, 90)
+    turtle.end_fill()
+    turtle.left(150)
+    turtle.circle(-90, 70)
+    turtle.left(20)
+    turtle.circle(75, 105)
+    turtle.setheading(60)
+    turtle.circle(80, 98)
+    turtle.circle(-90, 40)
+    turtle.left(180)
+    turtle.circle(90, 40)
+    turtle.circle(-80, 98)
+    turtle.setheading(-83)
+    turtle.fd(30)
+    turtle.left(90)
+    turtle.fd(25)
+    turtle.left(45)
+    turtle.fillcolor("green")
+    turtle.begin_fill()
+    turtle.circle(-80, 90)
+    turtle.right(90)
+    turtle.circle(-80, 90)
+    turtle.end_fill()
+    turtle.right(135)
+    turtle.fd(60)
+    turtle.left(180)
+    turtle.fd(85)
+    turtle.left(90)
+    turtle.fd(80)
+    turtle.right(90)
+    turtle.right(45)
+    turtle.fillcolor("green")
+    turtle.begin_fill()
+    turtle.circle(80, 90)
+    turtle.left(90)
+    turtle.circle(80, 90)
+    turtle.end_fill()
+    turtle.left(135)
+    turtle.fd(60)
+    turtle.left(180)
+    turtle.fd(60)
+    turtle.right(90)
+    turtle.circle(200, 60)
+    turtle.done()
+
+
+speak_one_time = 0
+speak_one = 0
+while True:
+    if speak_one == 0:
+        say("Enter Number to choose specific operation you want to perform")
+        speak_one = 1
+    print('\nOperations :\n 1 - Add Flight Details.\n 2 - Show Flight Details\n 3 - Update Flight Details. ')
+    print(' 4 - Delete Flight Detail.\n 5 - Search Flights.\n 6 - Clock.\n 7 - EXIT.')
+    if speak_one_time == 0:
+        speak("1 for Adding Flight Details, 2 for Displaying flight details, 3 to Update flight details"
+              ",4 for Deleting flight details, 5 to Search Flights, 6 to know current timings, and 7 for Exit")
+        speak_one_time = 1
+    op = int(input("\nEnter Number to Choose Operation : "))
+    if op == 1:
+        write_data()
+    elif op == 2:
+        print(f"\nFlights Details : ")
+        show_data()
+    elif op == 3:
+        update_data()
+    elif op == 4:
+        del_data()
+    elif op == 5:
+        search()
+    elif op == 6:
+        import time
+        live_time = time.strftime("%H:%M:%S")
+        speak(f"The Current timings are : {live_time}")
+        print(f"\n| The Current timings are : {live_time} |")
+    elif op == 7:
+        say("Thanks for Using Airways Management System")
+        print("Thanks for Using Airways Management System")
+        say("Creators of this, Airways Management System are |Akash kumar Singh, |Rohit Kumar and Pawan Meena ")
+        print("Creators of Airways Management System :\n | Akash kumar Singh |  Rohit kumar | Pawan Meena |")
+        speak("Here's a Flower for you DEAR")
+        flower()
+        speak("See You Again! Bye Dear")
+        break
+    else:
+        speak("Hey, Please Choose the Correct Operations!")
+        print("Please Choose CORRECT Operation!")
