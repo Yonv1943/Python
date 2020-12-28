@@ -2,6 +2,7 @@ Make Sure You've Installed Python Text to speech i.e. pyttsx3
 If not then Open Command Prompt and type : pip install pyttsx3
 Source Code : 
 
+
 # Airways Management System
 
 import pickle     # we are using pickle bec it operates binary files (will increase performance of program).
@@ -44,28 +45,34 @@ def write_data():
 
 def show_data():
     ''' it will Display all the Flights Data inside flight.dat file'''
-    try:
-        with open("flight.dat", "rb") as fdata:
+    say("Showing Flight Details")
+    with open('flight.dat', 'rb') as file:
+        try:
             while True:
-                print(f'{  pickle.load(fdata)}')
-    except Exception:
-        pass
+                data = pickle.load(file)
+                print(data)
+        except EOFError:
+            pass
 
 
 def del_data():
     speak('Please Enter Flight Number to delete its DATA')
     flightNo = int(input("\nPlease Enter Flight Number to delete its DATA : "))
+    fdata1 = open("flight.dat", "rb")
+    fdata2 = open("temp.dat", "ab")
     try:
-        with open("flight.dat", "rb") as fdata1:
-            with open("temp.dat", "ab") as fdata2:
-                data = pickle.load(fdata1)
-                if data["flightNo"] == flightNo:
-                    pass
-                else:
-                    pickle.dump(data, fdata2)
-    except Exception:
-        say("Error : There is no Data in flight.dat")
-        print("Error : There is no Data in flight.dat")
+        while True:
+            data = pickle.load(fdata1)
+            if data["flightNo"] == flightNo:
+                print(f"Flight-{flightNo} Deleted Successfully.")
+                say(f"Flight-{flightNo} Deleted Successfully.")
+                pass
+            else:
+                pickle.dump(data, fdata2)
+    except EOFError:
+        pass
+    fdata1.close()
+    fdata2.close()
     os.remove("flight.dat")
     os.rename("temp.dat", "flight.dat")
 
@@ -78,12 +85,13 @@ def del_data():
     except Exception:
         pass
 
+
 def search():
-    try:
-        with open('flight.dat', 'rb') as fdata:
-            speak(" Please Enter Flight Number to Search its Details")
-            fsearch = int(input("\nEnter Flight Number to Search : "))
-            datafound = 0
+    with open('flight.dat', 'rb') as fdata:
+        speak(" Please Enter Flight Number to Search its Details")
+        fsearch = int(input("\nEnter Flight Number to Search : "))
+        datafound = 0
+        try:
             while True:
                 data = pickle.load(fdata)
                 if data['flightNo'] == fsearch:
@@ -92,35 +100,38 @@ def search():
                     print(f'Search Result : \n  {data}')
                     say(data)
                     break
-            if datafound == 0:
-                speak(f'Details of flight-{fsearch} was NOT FOUND')
-                print(f"\n ! Details of flight-{fsearch} was NOT FOUND !")
-    except Exception:
-        print("Error : There is no Data in flight.dat")
+        except Exception:
+            print("Error : There is no Data in flight.dat")
+        if datafound == 0:
+            speak(f'Details of flight-{fsearch} was NOT FOUND')
+            print(f"\n ! Details of flight-{fsearch} was NOT FOUND !")
 
 
 def update_data():
-    with open("flight.dat", "rb") as fdata:
-        with open("temp.dat", "wb") as fdata2:
-            speak("Enter Flight Number to Update")
-            flightNo = int(input("Enter Flight Number to Update : "))
-            try:
-                while True:
-                    data = pickle.load(fdata)
-                    if data["flightNo"] == flightNo:
-                        print("Enter Flight New Details : \n")
-                        data["flightNo"] = int(input("Enter Flight Number : "))
-                        data["fname"] = input("Enter Flight's Name : ")
-                        data["fare"] = int(input("Enter the Fare : "))
-                        pickle.dump(data, fdata2)
-                        break
-                    else:
-                        pickle.dump(data, fdata2)
-            except EOFError:
-                pass
+    data1 = open("flight.dat", "rb")
+    data2 = open("temp.dat", "ab")
+    speak("Enter Flight Number to Update it")
+    flightNo = int(input("Enter Flight Number to Update : "))
+    try:
+        while True:
+            data = pickle.load(data1)
+            if data["flightNo"] == flightNo:
+                speak(f"Enter New Details of Flight-{flightNo}")
+                print(f"\nEnter New Details of Flight-{flightNo} : ")
+                data["flightNo"] = int(input("Enter Flight Number : "))
+                data["fname"] = input("Enter Flight's Name : ")
+                data["fare"] = int(input("Enter the Fare : "))
+                pickle.dump(data, data2)
+                speak(f"Data of flight-{flightNo} Updated Successfully.")
+                print("Data Updated Successfully.")
+            else:
+                pickle.dump(data, data2)
+    except EOFError:
+        pass
+    data1.close()
+    data2.close()
     os.remove("flight.dat")
     os.rename("temp.dat", "flight.dat")
-
 
 
 def flower():
@@ -242,3 +253,4 @@ while True:
     else:
         speak("Hey, Please Choose the Correct Operations!")
         print("Please Choose CORRECT Operation!")
+
