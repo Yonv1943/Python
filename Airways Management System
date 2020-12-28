@@ -95,7 +95,7 @@ def search():
 
 
 def update_data():
-    with open("file.dat", "rb") as fdata:
+    with open("flight.dat", "rb") as fdata:
         with open("temp.dat", "wb") as fdata2:
             speak("Enter Flight Number to Update")
             flightNo = int(input("Enter Flight Number to Update : "))
