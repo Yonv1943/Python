@@ -67,9 +67,10 @@ def del_data():
 
     try:
         with open("flight.dat", "rb") as fdata:
+            speak("Here's the Record of Flights after Deletion\n")
+            print('Record of Flights after Deletion :\n')
             while True:
-                speak("Here's the Record of Flights after Deletion")
-                print(f'\n Record of Flights after Deletion :\n  {pickle.load(fdata)}')
+                print(f'  {pickle.load(fdata)}')
     except Exception:
         pass
 
@@ -108,12 +109,14 @@ def update_data():
                         data["fname"] = input("Enter Flight's Name : ")
                         data["fare"] = int(input("Enter the Fare : "))
                         pickle.dump(data, fdata2)
+                        break
                     else:
                         pickle.dump(data, fdata2)
             except EOFError:
                 pass
-            os.remove("flight.dat")
-            os.rename("temp.dat", "flight.dat")
+    os.remove("flight.dat")
+    os.rename("temp.dat", "flight.dat")
+
 
 
 def flower():
