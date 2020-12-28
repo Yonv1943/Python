@@ -1,3 +1,7 @@
+Make Sure You've Installed Python Text to speech i.e. pyttsx3
+If not then Open Command Prompt and type : pip install pyttsx3
+Source Code : 
+
 # Airways Management System
 
 import pickle     # we are using pickle bec it operates binary files (will increase performance of program).
