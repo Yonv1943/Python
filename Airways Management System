@@ -244,8 +244,8 @@ while True:
     elif op == 7:
         say("Thanks for Using Airways Management System")
         print("Thanks for Using Airways Management System")
-        say("Creators of this, Airways Management System are |Akash kumar Singh, |Rohit Kumar and Pawan Meena ")
-        print("Creators of Airways Management System :\n | Akash kumar Singh |  Rohit kumar | Pawan Meena |")
+        say("Creators of this, Airways Management System are |Akash kumar Singh |")
+        print("Creators of Airways Management System :\n | Akash kumar Singh|")
         speak("Here's a Flower for you DEAR")
         flower()
         speak("See You Again! Bye Dear")
