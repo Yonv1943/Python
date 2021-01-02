@@ -105,3 +105,23 @@ if __name__ == '__main__':  # it is necessary to write main process in "if __nam
     # [p.start() for p in process]
     # [p.join() for p in process]
 
+import time
+import multiprocessing as mp
+
+def fun1(x):
+    time.sleep(1)
+    return x + 1
+
+def func2(x):
+    time.sleep(1)
+    return x - 1
+
+def run__mp():  # mp: multiprocessing 
+    process = [Process(target=func1, args=(1943,)),
+               Process(target=func2, args=(1943,)), ]
+    [p.start() for p in process]
+    [p.join() for p in process]
+
+if __name__ =='__main__':
+    run__mp()
+    
