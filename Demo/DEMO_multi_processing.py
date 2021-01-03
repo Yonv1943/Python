@@ -6,8 +6,7 @@ import multiprocessing as mp
 """
 
 
-def function_pipe1(conn):
-    p_id = 1
+def func_pipe1(conn, p_id):
     print(p_id, 0)
     time.sleep(1)
 
@@ -18,11 +17,8 @@ def function_pipe1(conn):
     conn.send(np.ones(1))
     print(p_id, 'send2')
 
-    time.sleep(3)
 
-
-def function_pipe2(conn):
-    p_id = '\t\t2'
+def func_pipe2(conn, p_id):
     print(p_id, 0)
     time.sleep(1)
 
@@ -34,12 +30,10 @@ def function_pipe2(conn):
     ary = conn.recv()
     print(p_id, 'recv2', ary.shape)
 
-    time.sleep(3)
-
 
 def func1(i):
     time.sleep(1)
-    print(f'id {i}')
+    print(f'args {i}')
 
 
 def func2(args):  # multiple parameters (arguments)
@@ -80,10 +74,29 @@ def run__process():  # mp: multiprocessing
 
 
 def run__pipe():
-    conn1, conn2 = mp.Pipe()
+    from multiprocessing import Process, Pipe
 
-    process = [mp.Process(target=function_pipe1, args=(conn1,)),
-               mp.Process(target=function_pipe2, args=(conn2,)), ]
+    conn1, conn2 = Pipe()
+
+    process = [Process(target=func_pipe1, args=(conn1, 'ID1')),
+               Process(target=func_pipe2, args=(conn2, '\t\tID2')), ]
+    [p.start() for p in process]
+    [p.join() for p in process]
+
+
+def run__queue():
+    from multiprocessing import Process, Queue
+
+    queue = Queue(maxsize=4)  # the following attribute can call in parent(main) or child process, just like 'Pipe'
+    queue.put(True)
+    queue.put([0, None, object])  # you can put deepcopy thing
+    queue.qsize()  # the length of queue
+    print(queue.get())  # First In First Out
+    print(queue.get())  # First In First Out
+    queue.qsize()  # the length of queue
+
+    process = [Process(target=func1, args=(queue,)),
+               Process(target=func1, args=(queue,)), ]
     [p.start() for p in process]
     [p.join() for p in process]
 
