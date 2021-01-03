@@ -1,6 +1,6 @@
 import time
-
 import numpy as np
+import multiprocessing as mp
 
 """An Tutorial of multi-processing (a Python built-in library)
 """
@@ -37,17 +37,12 @@ def function_pipe2(conn):
     time.sleep(3)
 
 
-def func1(x):  # single parameter (argument)
-    time.sleep(1)  # pretend it is a time-consuming operation
-    return x - 1
+def func1(i):
+    time.sleep(1)
+    print(f'id {i}')
 
 
-def func2(x, y):  # multiple parameters (arguments)
-    time.sleep(1)  # pretend it is a time-consuming operation
-    return x - y
-
-
-def func3(args):  # multiple parameters (arguments)
+def func2(args):  # multiple parameters (arguments)
     # x, y = args
     x = args[0]  # write in this way, easier to locate errors
     y = args[1]  # write in this way, easier to locate errors
@@ -56,72 +51,44 @@ def func3(args):  # multiple parameters (arguments)
     return x - y
 
 
-def demo1__pool():  # main process
+def run__pool():  # main process
     from multiprocessing import Pool
 
-    # Source: https://docs.python.org/3/library/multiprocessing.html
-    # Modify: Github Yonv1943
     cpu_worker_num = 3
-
-    print("==== input is single parameter (argument)")
-    process_args = [1, 9, 4, 3]
-
-    print(f'| mp.Pool    inputs:  {process_args}')
-    start_time = time.time()
-    with Pool(cpu_worker_num) as p:
-        outputs = p.map(func1, process_args)
-    print(f'| mp.Pool    outputs: {outputs}    TimeUsed: {time.time() - start_time:.1f}    \n')
-
-    print(f'| single     inputs:  {process_args}')
-    start_time = time.time()
-    outputs = [func1(x) for x in process_args]
-    print(f'| single     outputs: {outputs}    TimeUsed: {time.time() - start_time:.1f}    \n')
-
-    print("==== input is multiple parameters (arguments)")
     process_args = [(1, 1), (9, 9), (4, 4), (3, 3), ]
 
-    print("| Way1: Change func2 into func3: x, y = args\n"
-          "|       Now multiple arguments become single arguments.")
-
-    print(f'|       inputs:  {process_args}')
+    print(f'| inputs:  {process_args}')
     start_time = time.time()
     with Pool(cpu_worker_num) as p:
-        outputs = p.map(func3, process_args)
-    print(f'|       outputs: {outputs}    TimeUsed: {time.time() - start_time:.1f}    \n')
+        outputs = p.map(func2, process_args)
+    print(f'| outputs: {outputs}    TimeUsed: {time.time() - start_time:.1f}    \n')
 
-    print("| Way2: Using 'functions.partial' and not need to change func2\n"
-          "|       See https://stackoverflow.com/a/25553970/9293137")
+    '''Another way (I don't recommend)
+    Using 'functions.partial'. See https://stackoverflow.com/a/25553970/9293137
+    from functools import partial
+    # from functools import partial
+    # pool.map(partial(f, a, b), iterable)
+    '''
 
 
-if __name__ == '__main__':  # it is necessary to write main process in "if __name__ == '__main__'"
-    demo1__pool()
-    # conn1, conn2 = Pipe()
-    #
-    # process = [
-    #     Process(target=function_pipe1, args=(conn1,)),
-    #     Process(target=function_pipe2, args=(conn2,)),
-    # ]
-    #
-    # [p.start() for p in process]
-    # [p.join() for p in process]
-
-import time
-import multiprocessing as mp
-
-def fun1(x):
-    time.sleep(1)
-    return x + 1
-
-def func2(x):
-    time.sleep(1)
-    return x - 1
-
-def run__mp():  # mp: multiprocessing 
-    process = [Process(target=func1, args=(1943,)),
-               Process(target=func2, args=(1943,)), ]
+def run__process():  # mp: multiprocessing
+    from multiprocessing import Process
+    process = [Process(target=func1, args=(1,)),
+               Process(target=func1, args=(2,)), ]
     [p.start() for p in process]
     [p.join() for p in process]
 
-if __name__ =='__main__':
-    run__mp()
-    
+
+def run__pipe():
+    conn1, conn2 = mp.Pipe()
+
+    process = [mp.Process(target=function_pipe1, args=(conn1,)),
+               mp.Process(target=function_pipe2, args=(conn2,)), ]
+    [p.start() for p in process]
+    [p.join() for p in process]
+
+
+if __name__ == '__main__':  # it is necessary to write main process in "if __name__ == '__main__'"
+    # run__process()
+    run__pool()
+    # demo__pool()
