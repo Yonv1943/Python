@@ -7,28 +7,34 @@ import multiprocessing as mp
 
 
 def func_pipe1(conn, p_id):
-    print(p_id, 0)
-    time.sleep(1)
+    print(p_id)
 
-    conn.send(np.ones(1))
+    time.sleep(0.1)
+    conn.send(f'{p_id}_send1')
     print(p_id, 'send1')
-    ary = conn.recv()
-    print(p_id, 'recv1', ary.shape)
-    conn.send(np.ones(1))
+
+    time.sleep(0.1)
+    conn.send(f'{p_id}_send2')
     print(p_id, 'send2')
+
+    time.sleep(0.1)
+    rec = conn.recv()
+    print(p_id, 'recv', rec)
+
+    time.sleep(0.1)
+    rec = conn.recv()
+    print(p_id, 'recv', rec)
 
 
 def func_pipe2(conn, p_id):
-    print(p_id, 0)
-    time.sleep(1)
+    print(p_id)
 
-    conn.send(np.ones(2))
-    print(p_id, 'send1')
-
-    ary = conn.recv()
-    print(p_id, 'recv1', ary.shape)
-    ary = conn.recv()
-    print(p_id, 'recv2', ary.shape)
+    time.sleep(0.1)
+    conn.send(p_id)
+    print(p_id, 'send')
+    time.sleep(0.1)
+    rec = conn.recv()
+    print(p_id, 'recv', rec)
 
 
 def func1(i):
@@ -78,9 +84,14 @@ def run__pipe():
 
     conn1, conn2 = Pipe()
 
-    process = [Process(target=func_pipe1, args=(conn1, 'ID1')),
-               Process(target=func_pipe2, args=(conn2, '\t\tID2')), ]
+    process = [Process(target=func_pipe1, args=(conn1, 'I1')),
+               Process(target=func_pipe2, args=(conn2, 'I2')),
+               Process(target=func_pipe2, args=(conn2, 'I3')), ]
+
     [p.start() for p in process]
+    print('| Main', 'send')
+    conn1.send(None)
+    print('| Main', conn2.recv())
     [p.join() for p in process]
 
 
@@ -103,5 +114,5 @@ def run__queue():
 
 if __name__ == '__main__':  # it is necessary to write main process in "if __name__ == '__main__'"
     # run__process()
-    run__pool()
-    # demo__pool()
+    # run__pool()
+    run__pipe()
