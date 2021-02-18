@@ -22,8 +22,19 @@ def speak(line):
 speak("Enter Sql USER Password to get Started & if you don't know the password just press Enter")
 sqlpswd = input("Enter SQL USER Password : ")
 
-''' Since the User name of most SQL users are same i.e. 'root' '''
-flightDB = mysql.connector.connect(host='localhost', user='root', passwd=sqlpswd)
+try:
+    ''' Since the User name of most SQL users are same i.e. 'root' we'll also it'''
+    flightDB = mysql.connector.connect(host='localhost', user='root', passwd=sqlpswd)
+except Exception:
+    speak("You've entered wrong sql password try again")
+    print("Wrong Password try again ->")
+    pswd = input(" Enter SQL USER Password : ")
+    try:
+        flightDB = mysql.connector.connect(host='localhost', user='root', passwd=pswd)
+    except Exception:
+        speak("You've Again entered wrong SQL password please remember it and Try agail Later!")
+        print("Brother Focus and Try Later! Go Relax ;)")
+        quit()
 
 # Fetching the Databases in our Program
 cursor = flightDB.cursor()
@@ -44,6 +55,7 @@ except:
     pass
 
 line = "----------------------------------------------------------------"
+
 def write_data():
     ''' It will add New Details of Flights in table flightData'''
     speak('Enter the Number of Flights you want to insert in Database')
@@ -119,43 +131,44 @@ def updateData():
         print(f'Details of Flight-{oldfNo} was Not Found!')
 
 
-speak_one_time = 0
-speak_one = 0
-while True:
-    if speak_one == 0:
-        speak("Enter Number to choose specific operation you want to perform")
-        speak_one = 1
-    print('\nOperations :\n 1 - Add Flight Details.\n 2 - Show Flight Details\n 3 - Update Flight Details. ')
-    print(' 4 - Delete Flight Detail.\n 5 - Search Flights.\n 6 - Clock.\n 7 - EXIT.')
-    if speak_one_time == 0:
-        speak("1 for Adding Flight Details, 2 for Displaying flight details, 3 to Update flight details"
-              "4 for Deleting flight details, 5 to Search Flights, 6 to know current timings, and 7 for Exit")
-        speak_one_time = 1
+if __name__=="__main__":
+    speak_one_time = 0
+    speak_one = 0
+    while True:
+        if speak_one == 0:
+            speak("Enter Number to choose specific operation you want to perform")
+            speak_one = 1
+        print('\nOperations :\n 1 - Add Flight Details.\n 2 - Show Flight Details\n 3 - Update Flight Details. ')
+        print(' 4 - Delete Flight Detail.\n 5 - Search Flights.\n 6 - Clock.\n 7 - EXIT.')
+        if speak_one_time == 0:
+            speak("1 for Adding Flight Details, 2 for Displaying flight details, 3 to Update flight details"
+                  "4 for Deleting flight details, 5 to Search Flights, 6 to know current timings, and 7 for Exit")
+            speak_one_time = 1
 
-    op = int(input("\nEnter Number to Choose Operation : "))
-    if op == 1:
-        write_data()
-    elif op == 2:
-        show()
-    elif op == 3:
-        updateData()
-    elif op == 4:
-        delete()
-    elif op == 5:
-        search()
-    elif op == 6:
-        import time
-        live_time = time.strftime("%H:%M:%S")
-        speak(f"The Current timings are : {live_time}")
-        print(f"\n{line}\nThe Current timings are : {live_time} \n{line}\n")
-    elif op == 7:
-        speak('Thanks for Using Airways Management System')
-        print(f"\n{line}\nThanks for Using Airways Management System.\n")
-        speak("Creators of this, Airways Management System are Akash kumar Singh, Rohit Kumar and Pawan Meena ")
-        print(f"Creators of Airways Management System :\n | Akash kumar Singh |  Rohit kumar | Pawan Meena | \n{line}")
-        break
-    else:
-        speak("Please Choose CORRECT Operation!")
-        print("Please Choose CORRECT Operation!")
+        op = int(input("\nEnter Number to Choose Operation : "))
+        if op == 1:
+            write_data()
+        elif op == 2:
+            show()
+        elif op == 3:
+            updateData()
+        elif op == 4:
+            delete()
+        elif op == 5:
+            search()
+        elif op == 6:
+            import time
+            live_time = time.strftime("%H:%M:%S")
+            speak(f"The Current timings are : {live_time}")
+            print(f"\n{line}\nThe Current timings are : {live_time} \n{line}\n")
+        elif op == 7:
+            speak('Thanks for Using Airways Management System')
+            print(f"\n{line}\nThanks for Using Airways Management System.\n")
+            speak("Creators of this, Airways Management System are Akash kumar Singh, Rohit Kumar and Pawan Meena ")
+            print(f"Creators of Airways Management System :\n | Akash kumar Singh |  Rohit kumar | Pawan Meena | \n{line}")
+            break
+        else:
+            speak("Please Choose CORRECT Operation!")
+            print("Please Choose CORRECT Operation!")
 
 flightDB.close()
