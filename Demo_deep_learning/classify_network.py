@@ -156,12 +156,12 @@ class ConvNet(nn.Module):  # Conv2d
 
             # nn.BatchNorm2d(48),
             nn.Conv2d(48, mid_dim, global_size, 1, padding=0, bias=True),
-            NnnHardSwish(),
+            nn.Hardswish(),
 
             NnnReshape((-1, mid_dim)),
             # nn.BatchNorm1d(mid_dim),
             nn.Linear(mid_dim, mid_dim, bias=True),
-            NnnHardSwish(),
+            nn.Hardswish(),
 
             # nn.BatchNorm1d(mid_dim),
             self.dropout,
@@ -190,12 +190,12 @@ class ConvNetBatchNorm(nn.Module):
 
             nn.BatchNorm2d(48),
             nn.Conv2d(48, mid_dim, global_size, 1, padding=0, bias=True),
-            NnnHardSwish(),
+            nn.Hardswish(),
 
             NnnReshape((-1, mid_dim)),
             nn.BatchNorm1d(mid_dim),
             nn.Linear(mid_dim, mid_dim, bias=True),
-            NnnHardSwish(),
+            nn.Hardswish(),
 
             nn.BatchNorm1d(mid_dim),
             self.dropout,
@@ -227,7 +227,7 @@ class SENet(nn.Module):  # Squeeze-and-Excitation Network
         self.conv3 = nn.Sequential(
             # nn.BatchNorm2d(48),
             nn.Conv2d(48, mid_dim, global_size, 1, padding=0, bias=False),
-            NnnHardSwish(),
+            nn.Hardswish(),
         )
 
         self.dropout = nn.Dropout(p=0.25)
@@ -235,7 +235,7 @@ class SENet(nn.Module):  # Squeeze-and-Excitation Network
             NnnReshape((-1, mid_dim)),
             # nn.BatchNorm1d(mid_dim),
             nn.Linear(mid_dim, mid_dim, bias=True),
-            NnnHardSwish(),
+            nn.Hardswish(),
 
             # nn.BatchNorm1d(mid_dim),
             self.dropout,
@@ -277,7 +277,7 @@ class SENetBatchNorm(nn.Module):  # Squeeze-and-Excitation Network
         self.conv3 = nn.Sequential(
             nn.BatchNorm2d(48),
             nn.Conv2d(48, mid_dim, global_size, 1, padding=0, bias=False),
-            NnnHardSwish(),
+            nn.Hardswish(),
         )
 
         self.dropout = nn.Dropout(p=0.25)
@@ -285,7 +285,7 @@ class SENetBatchNorm(nn.Module):  # Squeeze-and-Excitation Network
             NnnReshape((-1, mid_dim)),
             nn.BatchNorm1d(mid_dim),
             nn.Linear(mid_dim, mid_dim, bias=True),
-            NnnHardSwish(),
+            nn.Hardswish(),
 
             nn.BatchNorm1d(mid_dim),
             self.dropout,
@@ -319,38 +319,6 @@ class NnnReshape(nn.Module):
     def forward(self, x):
         return x.view(self.shape)
 
-
-class NnnHardSwish(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.relu6 = nn.ReLU6()
-
-    def forward(self, x):
-        return self.relu6(x + 3.) / 6. * x
-
-
-# '''backup'''
-# def build_nn_module(func):
-#     class TorchModule(nn.Module):
-#         def __init__(self, *args):
-#             super(TorchModule, self).__init__()
-#             self.args = args
-#
-#         def forward(self, x):
-#             return func(self, x)
-#
-#     return TorchModule
-#
-#
-# @build_nn_module
-# def nn_hswish(_, x):
-#     return F.relu6(x + 3, inplace=True) / 6 * x
-#
-#
-# @build_nn_module
-# def nn_reshape(cls, x):
-#     shape = cls.args
-#     return x.view((x.size(0),) + shape)
 
 def nn_linear_bn(inp_dim, out_dim, bias):
     return nn.Sequential(
