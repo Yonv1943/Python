@@ -1,18 +1,21 @@
 import gym
 import numpy as np
 import numpy.random as rd
+from copy import deepcopy
 
 
 class PreprocessEnv(gym.Wrapper):  # environment wrapper
     def __init__(self, env, if_print=True):
         self.env = gym.make(env) if isinstance(env, str) else env
         super(PreprocessEnv, self).__init__(self.env)
-        self.step = self.step_type
 
         (self.env_name, self.state_dim, self.action_dim, self.action_max, self.max_step,
-         self.if_discrete, self.target_reward) = get_gym_env_info(self.env, if_print)
+         self.if_discrete, self.target_return) = get_gym_env_info(self.env, if_print)
 
-    def reset(self) -> np.ndarray:
+        self.reset = self.reset_type
+        self.step = self.step_type
+
+    def reset_type(self) -> np.ndarray:
         state = self.env.reset()
         return state.astype(np.float32)
 
@@ -22,7 +25,20 @@ class PreprocessEnv(gym.Wrapper):  # environment wrapper
 
 
 def get_gym_env_info(env, if_print) -> (str, int, int, int, int, bool, float):
-    import gym  # gym of OpenAI is not necessary for ElegantRL (even RL)
+    """get information of a standard OpenAI gym env.
+
+    The DRL algorithm AgentXXX need these env information for building networks and training.
+    env_name: the environment name, such as XxxXxx-v0
+    state_dim: the dimension of state
+    action_dim: the dimension of continuous action; Or the number of discrete action
+    action_max: the max action of continuous action; action_max == 1 when it is discrete action space
+    if_discrete: Is this env a discrete action space?
+    target_return: the target episode return, if agent reach this score, then it pass this game (env).
+    max_step: the steps in an episode. (from env.reset to done). It breaks an episode when it reach max_step
+
+    :env: a standard OpenAI gym environment, it has env.reset() and env.step()
+    :bool if_print: print the information of environment. Such as env_name, state_dim ...
+    """
     gym.logger.set_level(40)  # Block warning: 'WARN: Box bound precision lowered by casting to float32'
     assert isinstance(env, gym.Env)
 
@@ -31,12 +47,12 @@ def get_gym_env_info(env, if_print) -> (str, int, int, int, int, bool, float):
     state_shape = env.observation_space.shape
     state_dim = state_shape[0] if len(state_shape) == 1 else state_shape  # sometimes state_dim is a list
 
-    target_reward = getattr(env, 'target_reward', None)
-    target_reward_default = getattr(env.spec, 'reward_threshold', None)
-    if target_reward is None:
-        target_reward = target_reward_default
-    if target_reward is None:
-        target_reward = 2 ** 16
+    target_return = getattr(env, 'target_return', None)
+    target_return_default = getattr(env.spec, 'reward_threshold', None)
+    if target_return is None:
+        target_return = target_return_default
+    if target_return is None:
+        target_return = 2 ** 16
 
     max_step = getattr(env, 'max_step', None)
     max_step_default = getattr(env, '_max_episode_steps', None)
@@ -52,13 +68,23 @@ def get_gym_env_info(env, if_print) -> (str, int, int, int, int, bool, float):
     elif isinstance(env.action_space, gym.spaces.Box):  # make sure it is continuous action space
         action_dim = env.action_space.shape[0]
         action_max = float(env.action_space.high[0])
+        assert not any(env.action_space.high + env.action_space.low)
     else:
         raise RuntimeError('| Please set these value manually: if_discrete=bool, action_dim=int, action_max=1.0')
 
-    print(f"\n| env_name: {env_name}, action space if_discrete: {if_discrete}"
-          f"\n| state_dim: {state_dim}, action_dim: {action_dim}, action_max: {action_max}"
-          f"\n| max_step: {max_step} target_reward: {target_reward}") if if_print else None
-    return env_name, state_dim, action_dim, action_max, max_step, if_discrete, target_reward
+    print(f"\n| env_name:  {env_name}, action space if_discrete: {if_discrete}"
+          f"\n| state_dim: {state_dim:4}, action_dim: {action_dim}, action_max: {action_max}"
+          f"\n| max_step:  {max_step:4}, target_return: {target_return}") if if_print else None
+    return env_name, state_dim, action_dim, action_max, max_step, if_discrete, target_return
+
+
+def deepcopy_or_rebuild_env(env):
+    try:
+        env_eval = deepcopy(env)
+    except Exception as error:
+        print('| deepcopy_or_rebuild_env, error:', error)
+        env_eval = PreprocessEnv(env.env_name, if_print=False)
+    return env_eval
 
 
 class FinanceStockEnv:  # custom env
