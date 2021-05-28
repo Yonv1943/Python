@@ -15,7 +15,7 @@ class QNet(nn.Module):  # nn.Module is a standard PyTorch Network
         return self.net(state)  # q value
 
 
-class DoubleQNet(nn.Module):  # Double DQN
+class QNetTwin(nn.Module):  # Double DQN
     def __init__(self, mid_dim, state_dim, action_dim):
         super().__init__()
         self.net_state = nn.Sequential(nn.Linear(state_dim, mid_dim), nn.ReLU(),
@@ -43,7 +43,7 @@ class Actor(nn.Module):
                                  nn.Linear(mid_dim, action_dim))
 
     def forward(self, state):
-        return self.net(state).tanh()  # action
+        return self.net(state).tanh()  # action.tanh()
 
     def get_action(self, state, action_std):
         action = self.net(state).tanh()
@@ -62,7 +62,6 @@ class ActorSAC(nn.Module):
                                        nn.Linear(mid_dim, action_dim))  # the log_std of action
         self.num_logprob = -np.log(action_dim)
         self.log_sqrt_2pi = np.log(np.sqrt(2 * np.pi))
-        # self.log_alpha = torch.tensor((-np.log(action_dim),), dtype=torch.float32, requires_grad=True)  # trainable
         self.log_alpha = nn.Parameter(torch.zeros((1, action_dim)) - np.log(action_dim), requires_grad=True)
 
     def forward(self, state):

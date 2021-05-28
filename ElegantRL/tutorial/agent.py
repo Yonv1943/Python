@@ -2,7 +2,7 @@ import torch
 import numpy as np
 import numpy.random as rd
 from copy import deepcopy
-from elegantrl2.tutorial.net import QNet, DoubleQNet
+from elegantrl2.tutorial.net import QNet, QNetTwin
 from elegantrl2.tutorial.net import Actor, ActorSAC, ActorPPO, ActorDiscretePPO
 from elegantrl2.tutorial.net import Critic, CriticAdv, CriticTwin
 
@@ -115,8 +115,8 @@ class AgentDQN(AgentBase):
 class AgentDoubleDQN(AgentDQN):
     def __init__(self):
         super().__init__()
-        self.softMax = torch.nn.Softmax(dim=-1)
-        self.Cri = DoubleQNet
+        self.softMax = torch.nn.Softmax(dim=1)
+        self.Cri = QNetTwin
 
     def select_action(self, state) -> int:  # for discrete action space
         states = torch.as_tensor((state,), dtype=torch.float32, device=self.device)
@@ -164,7 +164,7 @@ class AgentDDPG(AgentBase):
             self.soft_update(self.cri_target, self.cri, soft_update_tau)
 
             action_pg = self.act(state)  # policy gradient
-            obj_actor = -self.cri_target(state, action_pg).mean()
+            obj_actor = -self.cri(state, action_pg).mean()
             self.optim_update(self.act_optim, obj_actor)
             self.soft_update(self.act_target, self.act, soft_update_tau)
         return obj_actor.item(), obj_critic.item()
@@ -195,7 +195,7 @@ class AgentTD3(AgentDDPG):
             self.optim_update(self.cri_optim, obj_critic)
 
             action_pg = self.act(state)  # policy gradient
-            obj_actor = -self.cri_target(state, action_pg).mean()
+            obj_actor = -self.cri_target(state, action_pg).mean()  # use cri_target instead of cri for stable training
             self.optim_update(self.act_optim, obj_actor)
             if update_c % self.update_freq == 0:  # delay update
                 self.soft_update(self.cri_target, self.cri, soft_update_tau)
@@ -361,9 +361,10 @@ class AgentDiscretePPO(AgentPPO):
 
 class ReplayBuffer:
     def __init__(self, max_len, state_dim, action_dim, if_discrete, if_on_policy):
+        self.now_len = 0
+        self.next_idx = 0
         self.if_full = False
         self.max_len = max_len
-        self.now_len = self.next_idx = 0
         self.if_on_policy = if_on_policy
         self.action_dim = 1 if if_discrete else action_dim
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -391,6 +392,7 @@ class ReplayBuffer:
     def extend_buffer(self, state, other):
         size = len(other)
         next_idx = self.next_idx + size
+
         if next_idx > self.max_len:
             self.buf_state[self.next_idx:self.max_len] = state[:self.max_len - self.next_idx]
             self.buf_other[self.next_idx:self.max_len] = other[:self.max_len - self.next_idx]
@@ -435,5 +437,6 @@ class ReplayBuffer:
         self.now_len = self.max_len if self.if_full else self.next_idx
 
     def empty_buffer(self):
-        self.now_len = self.next_idx = 0
+        self.now_len = 0
+        self.next_idx = 0
         self.if_full = False
