@@ -19,71 +19,54 @@ class ReplayBuffer:
         `bool if_gpu` create buffer space on CPU RAM or GPU
         `bool if_per` Prioritized Experience Replay for sparse reward
         """
-
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.max_len = max_len
         self.now_len = 0
         self.next_idx = 0
         self.if_full = False
-        self.action_dim = 1 if if_discrete else action_dim  # for self.sample_all(
-        self.if_on_policy = if_on_policy
+        self.max_len = max_len
         self.data_type = torch.float32
-        # self.if_gpu = if_gpu
+        self.if_on_policy = if_on_policy
+        self.action_dim = 1 if if_discrete else action_dim
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-        if (not if_on_policy) and if_per_or_gae:  # if_per:
-            self.tree = BinarySearchTree(max_len)
-            self.append_buffer = self.append_buffer_per
-            self.extend_buffer = self.extend_buffer_per
-            self.sample_batch = self.sample_batch_per
+        if_use_per = bool(if_per_or_gae and if_on_policy)
+        self.per_tree = BinarySearchTree(max_len) if if_use_per else None
 
         if if_on_policy:
             other_dim = 1 + 1 + self.action_dim + action_dim
             # other = (reward, mask, action, a_noise) for continuous action
             # other = (reward, mask, a_int, a_prob) for discrete action
+            self.buf_other = np.empty((max_len, other_dim), dtype=np.float32)
+            self.buf_state = np.empty((max_len, state_dim), dtype=np.float32)
         else:
             other_dim = 1 + 1 + self.action_dim
-            # other = (reward, mask, action) for continuous action
-            # other = (reward, mask, a_int) for discrete action
-
-        self.buf_state = torch.empty((max_len, state_dim), dtype=self.data_type, device=self.device)
-        self.buf_other = torch.empty((max_len, other_dim), dtype=self.data_type, device=self.device)
+            self.buf_other = torch.empty((max_len, other_dim), dtype=torch.float32, device=self.device)
+            self.buf_state = torch.empty((max_len, state_dim), dtype=torch.float32, device=self.device)
 
     def append_buffer(self, state, other):  # CPU array to CPU array
         self.buf_state[self.next_idx] = state
         self.buf_other[self.next_idx] = other
 
-        self.next_idx += 1
-        if self.next_idx >= self.max_len:
-            self.if_full = True
-            self.next_idx = 0
-
-    def append_buffer_per(self, state, other):  # CPU array to CPU array
-        self.buf_state[self.next_idx] = state
-        self.buf_other[self.next_idx] = other
-
-        self.tree.update_id(self.next_idx)
+        if self.per_tree:
+            self.per_tree.update_id(self.next_idx)
 
         self.next_idx += 1
         if self.next_idx >= self.max_len:
             self.if_full = True
             self.next_idx = 0
-
-    def extend_buffer_from_list(self, trajectory_list):  # plan to be elegant
-        state_ary = torch.as_tensor([item[0] for item in trajectory_list], dtype=self.data_type, device=self.device)
-        other_ary = torch.as_tensor([item[1] for item in trajectory_list], dtype=self.data_type, device=self.device)
-        self.extend_buffer(state_ary, other_ary)
 
     def extend_buffer(self, state, other):  # CPU array to CPU array
         size = len(other)
         next_idx = self.next_idx + size
 
-        if next_idx > self.max_len:
-            if next_idx > self.max_len:
-                self.buf_state[self.next_idx:self.max_len] = state[:self.max_len - self.next_idx]
-                self.buf_other[self.next_idx:self.max_len] = other[:self.max_len - self.next_idx]
-            self.if_full = True
-            next_idx = next_idx - self.max_len
+        if self.per_tree:
+            self.per_tree.update_ids(data_ids=np.arange(self.next_idx, next_idx) % self.max_len)
 
+        if next_idx > self.max_len:
+            self.buf_state[self.next_idx:self.max_len] = state[:self.max_len - self.next_idx]
+            self.buf_other[self.next_idx:self.max_len] = other[:self.max_len - self.next_idx]
+            self.if_full = True
+
+            next_idx = next_idx - self.max_len
             self.buf_state[0:next_idx] = state[-next_idx:]
             self.buf_other[0:next_idx] = other[-next_idx:]
         else:
@@ -91,25 +74,14 @@ class ReplayBuffer:
             self.buf_other[self.next_idx:next_idx] = other
         self.next_idx = next_idx
 
-    def extend_buffer_per(self, state, other):  # CPU array to CPU array
-        size = len(other)
-        next_idx = self.next_idx + size
-
-        self.tree.update_ids(data_ids=np.arange(self.next_idx, next_idx) % self.max_len)
-
-        if next_idx > self.max_len:
-            if next_idx > self.max_len:
-                self.buf_state[self.next_idx:self.max_len] = state[:self.max_len - self.next_idx]
-                self.buf_other[self.next_idx:self.max_len] = other[:self.max_len - self.next_idx]
-            self.if_full = True
-            next_idx = next_idx - self.max_len
-
-            self.buf_state[0:next_idx] = state[-next_idx:]
-            self.buf_other[0:next_idx] = other[-next_idx:]
+    def extend_buffer_from_list(self, trajectory_list):
+        if self.if_on_policy:
+            state = np.array([item[0] for item in trajectory_list], dtype=np.float32)
+            other = np.array([item[1] for item in trajectory_list], dtype=np.float32)
         else:
-            self.buf_state[self.next_idx:next_idx] = state
-            self.buf_other[self.next_idx:next_idx] = other
-        self.next_idx = next_idx
+            state = torch.as_tensor([item[0] for item in trajectory_list], dtype=torch.float32)  # , device=self.device)
+            other = torch.as_tensor([item[1] for item in trajectory_list], dtype=torch.float32)  # , device=self.device)
+        self.extend_buffer(state, other)
 
     def sample_batch(self, batch_size) -> tuple:
         """randomly sample a batch of data for training
@@ -121,31 +93,26 @@ class ReplayBuffer:
         :return torch.Tensor state:  state.shape ==(now_len, state_dim)
         :return torch.Tensor state:  state.shape ==(now_len, state_dim), next state
         """
-        indices = rd.randint(self.now_len - 1, size=batch_size)
-        r_m_a = self.buf_other[indices]
-        return (r_m_a[:, 0:1],
-                r_m_a[:, 1:2],
-                r_m_a[:, 2:],
-                self.buf_state[indices],
-                self.buf_state[indices + 1])
-        # return (r_m_a[:, 0:1].type(torch.float32),
-        #         r_m_a[:, 1:2].type(torch.float32),
-        #         r_m_a[:, 2:].type(torch.float32),
-        #         self.buf_state[indices].type(torch.float32),
-        #         self.buf_state[indices + 1].type(torch.float32))
+        if self.per_tree:
+            beg = -self.max_len
+            end = (self.now_len - self.max_len) if (self.now_len < self.max_len) else None
 
-    def sample_batch_per(self, batch_size) -> tuple:
-        beg = -self.max_len
-        end = (self.now_len - self.max_len) if (self.now_len < self.max_len) else None
-
-        indices, is_weights = self.tree.get_indices_is_weights(batch_size, beg, end)
-        r_m_a = self.buf_other[indices]
-        return (r_m_a[:, 0:1].type(torch.float32),  # reward
-                r_m_a[:, 1:2].type(torch.float32),  # mask
-                r_m_a[:, 2:].type(torch.float32),  # action
-                self.buf_state[indices].type(torch.float32),  # state
-                self.buf_state[indices + 1].type(torch.float32),  # next state
-                torch.as_tensor(is_weights, dtype=torch.float32, device=self.device))  # important sampling weights
+            indices, is_weights = self.per_tree.get_indices_is_weights(batch_size, beg, end)
+            r_m_a = self.buf_other[indices]
+            return (r_m_a[:, 0:1].type(torch.float32),  # reward
+                    r_m_a[:, 1:2].type(torch.float32),  # mask
+                    r_m_a[:, 2:].type(torch.float32),  # action
+                    self.buf_state[indices].type(torch.float32),  # state
+                    self.buf_state[indices + 1].type(torch.float32),  # next state
+                    torch.as_tensor(is_weights, dtype=torch.float32, device=self.device))  # important sampling weights
+        else:
+            indices = rd.randint(self.now_len - 1, size=batch_size)
+            r_m_a = self.buf_other[indices]
+            return (r_m_a[:, 0:1],
+                    r_m_a[:, 1:2],
+                    r_m_a[:, 2:],
+                    self.buf_state[indices],
+                    self.buf_state[indices + 1])
 
     def sample_all(self) -> tuple:
         """sample all the data in ReplayBuffer (for on-policy)
@@ -156,12 +123,13 @@ class ReplayBuffer:
         :return torch.Tensor noise:  noise.shape ==(now_len, action_dim)
         :return torch.Tensor state:  state.shape ==(now_len, state_dim)
         """
+        all_state = torch.as_tensor(self.buf_state[:self.now_len], device=self.device)
         all_other = torch.as_tensor(self.buf_other[:self.now_len], device=self.device)
-        return (all_other[:, 0].type(torch.float32),  # reward
-                all_other[:, 1].type(torch.float32),  # mask
-                all_other[:, 2:2 + self.action_dim].type(torch.float32),  # action
-                all_other[:, 2 + self.action_dim:].type(torch.float32),  # noise
-                torch.as_tensor(self.buf_state[:self.now_len], dtype=torch.float32, device=self.device))  # state
+        return (all_other[:, 0],  # reward
+                all_other[:, 1],  # mask = 0.0 if done else gamma
+                all_other[:, 2:2 + self.action_dim],  # action
+                all_other[:, 2 + self.action_dim:],  # action_noise or action_prob
+                all_state,)  # state without last_state
 
     def update_now_len(self):
         """update the a pointer `now_len`, which is the current data number of ReplayBuffer
@@ -171,8 +139,8 @@ class ReplayBuffer:
     def empty_buffer(self):
         """we empty the buffer by set now_len=0. On-policy need to empty buffer before exploration
         """
-        self.next_idx = 0
         self.now_len = 0
+        self.next_idx = 0
         self.if_full = False
 
     def print_state_norm(self, neg_avg=None, div_std=None):  # non-essential
@@ -227,51 +195,37 @@ class ReplayBuffer:
         print(f"std = np.{repr(ary_std).replace('=float32', '=np.float32')}")
 
     def td_error_update(self, td_error):
-        self.tree.td_error_update(td_error)
+        self.per_tree.td_error_update(td_error)
 
 
 class ReplayBufferMP:
-    def __init__(self, max_len, max_episode_step,
-                 state_dim, action_dim, if_on_policy, if_per, rollout_num):
+    def __init__(self, max_len, worker_num,
+                 state_dim, action_dim, if_discrete, if_on_policy, if_per_or_gae):
         """Experience Replay Buffer for Multiple Processing
 
-        `int rollout_num` the rollout workers number
+        `int max_len` the max_len of ReplayBuffer, not the total len of ReplayBufferMP
+        `int worker_num` the rollout workers number
         """
         self.now_len = 0
         self.max_len = max_len
-        self.rollout_num = rollout_num
+        self.worker_num = worker_num
 
-        if if_on_policy:
-            buf_max_len = max_len + max_episode_step  # todo * 2
-        else:
-            buf_max_len = max_len // rollout_num
-
-        self.buffers = [ReplayBuffer(buf_max_len, state_dim, action_dim, if_on_policy, if_per)
-                        for _ in range(rollout_num)]
-
-    def extend_buffer(self, state, other, i):
-        self.buffers[i].extend_buffer(state, other)
+        buf_max_len = max_len // worker_num
+        self.buffers = [ReplayBuffer(buf_max_len, state_dim, action_dim, if_discrete, if_on_policy, if_per_or_gae)
+                        for _ in range(worker_num)]
 
     def sample_batch(self, batch_size) -> list:
-        # rd_batch_sizes = rd.rand(self.rollout_num)
-        # rd_batch_sizes = (rd_batch_sizes * (batch_size / rd_batch_sizes.sum())).astype(np.int)
-        # list_items = [self.buffers[i].sample_batch(rd_batch_sizes[i])
-        #               for i in range(self.rollout_num) if rd_batch_sizes[i] > 2]
-        bs = batch_size // self.rollout_num
+        bs = batch_size // self.worker_num
         list_items = [self.buffers[i].sample_batch(bs)
-                      for i in range(self.rollout_num)]
+                      for i in range(self.worker_num)]
 
         # list_items of reward, mask, action, state, next_state
         # list_items of reward, mask, action, state, next_state, is_weights (PER)
-        return [torch.cat([item[i] for item in list_items], dim=0)
-                for i in range(len(list_items[0]))]
 
-    def sample_all(self) -> list:
-        l__r_m_a_n_s = [self.buffers[i].sample_all()
-                        for i in range(self.rollout_num)]
-        # list of reward, mask, action, noise, state
-        return [torch.cat([item[i] for item in l__r_m_a_n_s], dim=0)
-                for i in range(len(l__r_m_a_n_s[0]))]
+        # return [torch.cat([item[i] for item in list_items], dim=0)
+        #         for i in range(len(list_items[0]))]  # todo need to check
+        list_items = list(map(list, zip(*list_items)))  # 2D-list transpose
+        return [torch.cat(item, dim=0) for item in list_items]
 
     def update_now_len(self):
         self.now_len = 0
@@ -288,9 +242,9 @@ class ReplayBufferMP:
         self.buffers[0].print_state_norm(neg_avg, div_std)
 
     def td_error_update(self, td_error):
-        td_errors = td_error.view(self.rollout_num, -1, 1)
-        for i in range(self.rollout_num):
-            self.buffers[i].tree.td_error_update(td_errors[i])
+        td_errors = td_error.view(self.worker_num, -1, 1)
+        for i in range(self.worker_num):
+            self.buffers[i].per_tree.td_error_update(td_errors[i])
 
 
 class BinarySearchTree:
