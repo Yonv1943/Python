@@ -215,7 +215,7 @@ class ActorPPO(nn.Module):
         return logprob, dist_entropy
 
     def get_old_logprob(self, _action, noise):  # noise = action - a_noise
-        return -(self.a_logstd + self.sqrt_2pi_log + noise.pow(2) * 0.5).sum(1)  # old_logprob
+        return -(self.a_logstd + self.sqrt_2pi_log + noise.pow(2) * 0.5).sum(1, keepdims=True)  # old_logprob
 
 
 class ActorDiscretePPO(nn.Module):
@@ -448,7 +448,7 @@ class SharedSPG(nn.Module):  # SPG means stochastic policy gradient
 
         a_noise_tanh = a_noise.tanh()
         fix_term = (-a_noise_tanh.pow(2) + 1.00001).log()
-        logprob = (noise.pow(2) / 2 + a_std_log + fix_term).sum(1, keepdim=True) + self.log_sqrt_2pi_sum
+        logprob = (noise.pow(2) / 2 + a_std_log + fix_term).sum(1) + self.log_sqrt_2pi_sum
         return a_noise_tanh, logprob
 
     def get_q_logprob(self, state):

@@ -1,7 +1,7 @@
 import sys
 
 import gym
-from elegantrl2.env import PreprocessEnv
+from elegantrl2.env import PreprocessEnv, PreprocessVecEnv
 from elegantrl2.run import Arguments, train_and_evaluate, train_and_evaluate_mp
 
 gym.logger.set_level(40)  # Block warning: 'WARN: Box bound precision lowered by casting to float32'

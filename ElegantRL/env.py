@@ -1,5 +1,6 @@
 import os
 import gym
+import torch
 import numpy as np
 # import numpy.random as rd
 from copy import deepcopy
@@ -12,11 +13,11 @@ class PreprocessEnv(gym.Wrapper):  # environment wrapper
         """Preprocess a standard OpenAI gym environment for training.
 
         `object env` a standard OpenAI gym environment, it has env.reset() and env.step()
-        `object if_print` print the information of environment. Such as env_name, state_dim ...
+        `bool if_print` print the information of environment. Such as env_name, state_dim ...
         `object data_type` convert state (sometimes float64) to data_type (float32).
         """
         self.env = gym.make(env) if isinstance(env, str) else env
-        super(PreprocessEnv, self).__init__(self.env)
+        super().__init__(self.env)
 
         (self.env_name, self.state_dim, self.action_dim, self.action_max, self.max_step,
          self.if_discrete, self.target_return) = get_gym_env_info(self.env, if_print)
@@ -84,6 +85,74 @@ class PreprocessEnv(gym.Wrapper):  # environment wrapper
         state, reward, done, info = self.env.step(action * self.action_max)
         state = (state + self.neg_state_avg) * self.div_state_std
         return state.astype(self.data_type), reward, done, info
+
+
+class PreprocessVecEnv(gym.Wrapper):
+    def __init__(self, env, env_num, device=torch.device('cuda'),
+                 if_print=True, data_type=torch.float32):
+        """Preprocess a standard OpenAI gym environment for training.
+
+        `object env` a standard OpenAI gym environment, it has env.reset() and env.step()
+        `int env_num` environment number
+        `object device` torch.device('cpu'), torch.device('cuda')
+        `bool if_print` print the information of environment. Such as env_name, state_dim ...
+        `object data_type` convert state (sometimes float64) to data_type (float32).
+        """
+        if isinstance(env, str):
+            env_name = env
+            self.env_list = [gym.make(env_name) for _ in range(env_num)]
+        elif getattr(env, 'env_name', False):
+            env_name = env.env_name
+            self.env_list = [gym.make(env_name) for _ in range(env_num)]
+        else:
+            self.env_list = [deepcopy(env) for _ in range(env_num)]
+        env = self.env_list[0]
+        super().__init__(env)
+
+        (self.env_name, self.state_dim, self.action_dim, self.action_max, self.max_step,
+         self.if_discrete, self.target_return) = get_gym_env_info(env, if_print)
+        self.data_type = data_type
+
+        self.env_num = env_num
+        self.data_type = data_type
+        self.device = device
+
+    def reset(self) -> torch.Tensor:
+        """state = env.reset()
+
+        convert the data type of state from float64 to float32
+
+        return `array state` state.shape==(state_dim, )
+        """
+        state = torch.as_tensor([env.reset() for env in self.env_list],
+                                dtype=self.data_type, device=self.device)
+        return state
+
+    def step(self, actions) -> (torch.Tensor, torch.Tensor, torch.Tensor, dict):
+        """ next_state, reward, done = env.step(action)
+
+        convert the data type of state from float64 to float32,
+        adjust action range to (-action_max, +action_max)
+
+        return `array state`  state.shape==(state_dim, )
+        return `float reward` reward of one step
+        return `bool done` the terminal of an training episode
+        return `dict info` the information save in a dict. OpenAI gym standard. Send a `None` is OK
+        """
+
+        actions = actions.detach().cpu().numpy() * self.action_max
+
+        states = list()
+        rewards = list()
+        dones = list()
+        for i in range(self.env_num):
+            state, reward, done, _ = self.env_list[i].step(actions[i])
+            states.append(self.env_list[i].reset() if done else state)
+            rewards.append(reward)
+            dones.append(done)
+        states, rewards, dones = [torch.as_tensor(t, dtype=self.data_type, device=self.device)
+                                  for t in (states, rewards, dones)]
+        return states, rewards, dones, {}
 
 
 def deepcopy_or_rebuild_env(env):

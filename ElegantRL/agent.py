@@ -530,6 +530,11 @@ class AgentPPO(AgentBase):
         actions, noises = self.act.get_action(states)  # plan to be get_action_a_noise
         return actions[0].detach().cpu().numpy(), noises[0].detach().cpu().numpy()
 
+    def select_actions(self, states):
+        # states = torch.as_tensor((state,), dtype=torch.float32, device=self.device)
+        actions, noises = self.act.get_action(states)  # plan to be get_action_a_noise
+        return actions, noises
+
     def explore_env(self, env, target_step, reward_scale, gamma):
         trajectory_list = list()
 
@@ -544,20 +549,97 @@ class AgentPPO(AgentBase):
         self.state = state
         return trajectory_list
 
+    def explore_envs(self, env, target_step, reward_scale, gamma):
+        state = self.state
+        env_num = env.env_num
+
+        buf_step = target_step // env_num
+        states = torch.empty((buf_step, env_num, env.state_dim), dtype=torch.float32, device=self.device)
+        actions = torch.empty((buf_step, env_num, env.action_dim), dtype=torch.float32, device=self.device)
+        noises = torch.empty((buf_step, env_num, env.action_dim), dtype=torch.float32, device=self.device)
+        rewards = torch.empty((buf_step, env_num), dtype=torch.float32, device=self.device)
+        dones = torch.empty((buf_step, env_num), dtype=torch.float32, device=self.device)
+        for i in range(buf_step):
+            action, noise = self.select_actions(state)
+            next_s, reward, done, _ = env.step(action.tanh())
+            # other = (reward * reward_scale, 0.0 if done else gamma, *action, *noise)
+            # trajectory_list.append((state, other))
+
+            states[i] = state
+            actions[i] = action
+            noises[i] = noise
+            rewards[i] = reward
+            dones[i] = done
+
+            # state = env.reset() if done else next_s
+            state = next_s
+        self.state = state
+        rewards = rewards * reward_scale
+        masks = (1 - dones) * gamma
+        return states, rewards, masks, actions, noises
+
+    def prepare_buffer(self, buffer):
+        buffer.update_now_len()
+        buf_len = buffer.now_len
+        with torch.no_grad():  # compute reverse reward
+            reward, mask, action, a_noise, state = buffer.sample_all()
+
+            # print(';', [t.shape for t in (reward, mask, action, a_noise, state)])
+            bs = 2 ** 10  # set a smaller 'BatchSize' when out of GPU memory.
+            value = torch.cat([self.cri_target(state[i:i + bs]) for i in range(0, state.size(0), bs)], dim=0).squeeze(1)
+            logprob = self.act.get_old_logprob(action, a_noise)
+
+            pre_state = torch.as_tensor((self.state,), dtype=torch.float32, device=self.device)
+            pre_r_sum = self.cri_target(pre_state).detach()
+            r_sum, advantage = self.get_reward_sum(buf_len, reward, mask, value, pre_r_sum)
+        buffer.empty_buffer()
+        return state, action, r_sum, logprob, advantage
+
+    def prepare_buffers(self, buffer):
+        with torch.no_grad():  # compute reverse reward
+            states, rewards, masks, actions, noises = buffer
+            buf_len = states.size(0)
+            env_num = states.size(1)
+
+            values = torch.empty_like(rewards)
+            logprobs = torch.empty_like(rewards)
+            bs = 2 ** 10  # set a smaller 'BatchSize' when out of GPU memory.
+            for j in range(env_num):
+                for i in range(0, buf_len, bs):
+                    values[i:i + bs, j] = self.cri_target(states[i:i + bs, j]).squeeze(1)
+                logprobs[:, j] = self.act.get_old_logprob(actions[:, j], noises[:, j]).squeeze(1)
+
+            pre_states = torch.as_tensor(self.state, dtype=torch.float32, device=self.device)
+            pre_r_sums = self.cri_target(pre_states).detach().squeeze(1)
+
+            r_sums, advantages = self.get_reward_sum((buf_len, env_num), rewards, masks, values, pre_r_sums)
+
+        buf_len_vec = buf_len * env_num
+
+        states = states.view((buf_len_vec, -1))
+        actions = actions.view((buf_len_vec, -1))
+        r_sums = r_sums.view(buf_len_vec)
+        logprobs = logprobs.view(buf_len_vec)
+        advantages = advantages.view(buf_len_vec)
+        return states, actions, r_sums, logprobs, advantages
+
     def update_net(self, buffer, batch_size, repeat_times, soft_update_tau):
         if isinstance(buffer, list):
             buffer_tuple = list(map(list, zip(*buffer)))  # 2D-list transpose
             (buf_state, buf_action, buf_r_sum, buf_logprob, buf_advantage
              ) = [torch.cat(tensor_list, dim=0).to(self.device)
                   for tensor_list in buffer_tuple]
-
+        elif isinstance(buffer, tuple):
+            (buf_state, buf_action, buf_r_sum, buf_logprob, buf_advantage
+             ) = buffer
         else:
             (buf_state, buf_action, buf_r_sum, buf_logprob, buf_advantage
-             ) = self.prepare_buffer(buffer, self.state)
+             ) = self.prepare_buffer(buffer)
         buf_len = buf_state.size(0)
 
         '''PPO: Surrogate objective of Trust Region'''
         obj_critic = obj_actor = old_logprob = None
+        r_sum_std = 1  # todo buf_r_sum.std() + 1e-6
         for _ in range(int(buf_len / batch_size * repeat_times)):
             indices = torch.randint(buf_len, size=(batch_size,), requires_grad=False, device=self.device)
 
@@ -576,60 +658,47 @@ class AgentPPO(AgentBase):
             self.optim_update(self.act_optim, obj_actor)
 
             value = self.cri(state).squeeze(1)  # critic network predicts the reward_sum (Q value) of state
-            obj_critic = self.criterion(value, r_sum)  # / (r_sum.std() + 1e-6)
+            obj_critic = self.criterion(value, r_sum) / r_sum_std
             self.optim_update(self.cri_optim, obj_critic)
             self.soft_update(self.cri_target, self.cri, soft_update_tau) if self.cri_target is not self.cri else None
 
         return obj_critic.item(), obj_actor.item(), old_logprob.mean().item()  # logging_tuple
 
-    def prepare_buffer(self, buffer, state_ary):
-        buffer.update_now_len()
-        buf_len = buffer.now_len
-        with torch.no_grad():  # compute reverse reward
-            reward, mask, action, a_noise, state = buffer.sample_all()
-
-            # print(';', [t.shape for t in (reward, mask, action, a_noise, state)])
-            bs = 2 ** 10  # set a smaller 'BatchSize' when out of GPU memory.
-            value = torch.cat([self.cri_target(state[i:i + bs]) for i in range(0, state.size(0), bs)], dim=0)
-            logprob = self.act.get_old_logprob(action, a_noise)
-
-            pre_state = torch.as_tensor((state_ary,), dtype=torch.float32, device=self.device)
-            pre_r_sum = self.cri(pre_state).detach()
-            r_sum, advantage = self.get_reward_sum(buf_len, reward, mask, value, pre_r_sum)
-        buffer.empty_buffer()
-        return state, action, r_sum, logprob, advantage
-
     def get_reward_sum_raw(self, buf_len, buf_reward, buf_mask, buf_value, pre_r_sum) -> (torch.Tensor, torch.Tensor):
         """compute the excepted discounted episode return
 
         :int buf_len: the length of ReplayBuffer
-        :torch.Tensor buf_reward: buf_reward.shape==(buf_len, 1)
-        :torch.Tensor buf_mask:   buf_mask.shape  ==(buf_len, 1)
-        :torch.Tensor buf_value:  buf_value.shape ==(buf_len, 1)
-        :return torch.Tensor buf_r_sum:      buf_r_sum.shape     ==(buf_len, 1)
+        :torch.Tensor buf_reward: buf_reward.shape==(buf_len, )
+        :torch.Tensor buf_mask:   buf_mask.shape  ==(buf_len, )
+        :torch.Tensor buf_value:  buf_value.shape ==(buf_len, )
+        :torch.Tensor pre_r_sum:  pre_r_sum.shape ==(1, 1)
+        :return torch.Tensor buf_r_sum: buf_r_sum.shape     ==(buf_len, 1)
         :return torch.Tensor buf_advantage:  buf_advantage.shape ==(buf_len, 1)
         """
         buf_r_sum = torch.empty(buf_len, dtype=torch.float32, device=self.device)  # reward sum
-        for i in range(buf_len - 1, -1, -1):
+        the_len = buf_len[0] if isinstance(buf_len, tuple) else buf_len
+        for i in range(the_len - 1, -1, -1):
             buf_r_sum[i] = buf_reward[i] + buf_mask[i] * pre_r_sum
             pre_r_sum = buf_r_sum[i]
-        buf_advantage = buf_r_sum - (buf_mask * buf_value.squeeze(1))
-        buf_advantage = (buf_advantage - buf_advantage.mean()) / (buf_advantage.std() + 1e-5)
+        buf_advantage = buf_r_sum - buf_mask * buf_value
+        buf_advantage = (buf_advantage - buf_advantage.mean())  # todo / (buf_advantage.std() + 1e-5)
         return buf_r_sum, buf_advantage
 
     def get_reward_sum_gae(self, buf_len, buf_reward, buf_mask, buf_value, pre_r_sum) -> (torch.Tensor, torch.Tensor):
         buf_r_sum = torch.empty(buf_len, dtype=torch.float32, device=self.device)  # old policy value
         buf_advantage = torch.empty(buf_len, dtype=torch.float32, device=self.device)  # advantage value
 
-        pre_advantage = pre_r_sum * (np.exp(self.lambda_gae_adv - 0.4) - 1)  # advantage value of previous step
-        for i in range(buf_len - 1, -1, -1):
+        pre_advantage = pre_r_sum * (np.exp(self.lambda_gae_adv - 0.5) - 1)  # advantage value of previous step
+
+        the_len = buf_len[0] if isinstance(buf_len, tuple) else buf_len
+        for i in range(the_len - 1, -1, -1):
             buf_r_sum[i] = buf_reward[i] + buf_mask[i] * pre_r_sum
             pre_r_sum = buf_r_sum[i]
 
             buf_advantage[i] = buf_reward[i] + buf_mask[i] * (pre_advantage - buf_value[i])  # fix a bug here
             pre_advantage = buf_value[i] + buf_advantage[i] * self.lambda_gae_adv
 
-        buf_advantage = (buf_advantage - buf_advantage.mean()) / (buf_advantage.std() + 1e-5)
+        buf_advantage = (buf_advantage - buf_advantage.mean())  # todo / (buf_advantage.std() + 1e-5)
         return buf_r_sum, buf_advantage
 
 

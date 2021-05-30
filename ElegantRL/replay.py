@@ -223,7 +223,7 @@ class ReplayBufferMP:
         # list_items of reward, mask, action, state, next_state, is_weights (PER)
 
         # return [torch.cat([item[i] for item in list_items], dim=0)
-        #         for i in range(len(list_items[0]))]  # todo need to check
+        #         for i in range(len(list_items[0]))]  # need to check
         list_items = list(map(list, zip(*list_items)))  # 2D-list transpose
         return [torch.cat(item, dim=0) for item in list_items]
 

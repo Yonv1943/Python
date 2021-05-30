@@ -29,8 +29,8 @@ class Arguments:
 
         if if_on_policy:  # (on-policy)
             self.net_dim = 2 ** 9  # the network width
-            self.batch_size = self.net_dim  # num of transitions sampled from replay buffer.
-            self.repeat_times = 2 ** 4  # collect target_step, then update network
+            self.batch_size = self.net_dim * 2  # num of transitions sampled from replay buffer.
+            self.repeat_times = 2 ** 3  # collect target_step, then update network
             self.target_step = 2 ** 12  # repeatedly update network to keep critic's loss small
             self.max_memo = self.target_step  # capacity of replay buffer
             self.if_per_or_gae = False  # GAE for on-policy sparse reward: Generalized Advantage Estimation.
@@ -121,11 +121,11 @@ def train_and_evaluate(args):
     show_gap = args.eval_gap
     eval_times1 = args.eval_times1
     eval_times2 = args.eval_times2
+    if_vec_env = getattr(env, 'env_num', 1) > 1
     env_eval = deepcopy_or_rebuild_env(env) if args.env_eval is None else args.env_eval
     del args  # In order to show these hyper-parameters clearly, I put them above.
 
     '''init: environment'''
-    # max_step = env.max_step
     state_dim = env.state_dim
     action_dim = env.action_dim
     if_discrete = env.if_discrete
@@ -161,23 +161,58 @@ def train_and_evaluate(args):
 
     '''start training'''
     if_train = True
-    while if_train:
-        with torch.no_grad():
-            trajectory_list = agent.explore_env(env, target_step, reward_scale, gamma)
-        steps = len(trajectory_list)
-        total_step += steps
+    if if_vec_env:
+        while if_train:
+            with torch.no_grad():
+                buffer = agent.explore_envs(env, target_step, reward_scale, gamma)
+            steps = buffer[0].size(0) * buffer[0].size(1)
+            total_step += steps
 
-        buffer.extend_buffer_from_list(trajectory_list)
-        logging_tuple = agent.update_net(buffer, batch_size, repeat_times, soft_update_tau)
+            buffer = agent.prepare_buffers(buffer)
+            logging_tuple = agent.update_net(buffer, batch_size, repeat_times, soft_update_tau)
 
-        with torch.no_grad():  # speed up running
-            if_reach_goal = evaluator.evaluate_save(agent.act, steps, logging_tuple)
-        if_train = not ((if_break_early and if_reach_goal)
-                        or total_step > break_step
-                        or os.path.exists(f'{cwd}/stop'))
+            with torch.no_grad():  # speed up running
+                if_reach_goal = evaluator.evaluate_save(agent.act, steps, logging_tuple)
+            if_train = not ((if_break_early and if_reach_goal)
+                            or total_step > break_step
+                            or os.path.exists(f'{cwd}/stop'))
+    else:
+        while if_train:
+            with torch.no_grad():
+                trajectory_list = agent.explore_env(env, target_step, reward_scale, gamma)
+            steps = len(trajectory_list)
+            total_step += steps
+
+            buffer.extend_buffer_from_list(trajectory_list)
+            logging_tuple = agent.update_net(buffer, batch_size, repeat_times, soft_update_tau)
+
+            with torch.no_grad():  # speed up running
+                if_reach_goal = evaluator.evaluate_save(agent.act, steps, logging_tuple)
+            if_train = not ((if_break_early and if_reach_goal)
+                            or total_step > break_step
+                            or os.path.exists(f'{cwd}/stop'))
 
 
 '''multiprocessing training'''
+
+
+def train_and_evaluate_mp(args):
+    import multiprocessing as mp  # Python built-in multiprocessing library
+    process = list()
+
+    pipe_eva = mp.Pipe()
+    process.append(mp.Process(target=mp_evaluator, args=(args, pipe_eva)))
+
+    pipe_exp_list = list()
+    for _ in range(args.worker_num):
+        pipe_exp = mp.Pipe()
+        pipe_exp_list.append(pipe_exp)
+        process.append(mp.Process(target=mp_worker, args=(args, pipe_exp)))
+    process.append(mp.Process(target=mp_learner, args=(args, pipe_exp_list, pipe_eva)))
+
+    [p.start() for p in process]
+    [p.join() for p in (process[-1],)]  # wait
+    [p.terminate() for p in process]
 
 
 def mp_worker(args, pipe_exp):
@@ -219,6 +254,7 @@ def mp_worker(args, pipe_exp):
         if_discrete = env.if_discrete
         del args  # In order to show these hyper-parameters clearly, I put them above.
 
+    if_vec_env = getattr(env, 'env_num', 1) > 1
     '''init: Agent, ReplayBuffer, Evaluator'''
     agent.init(net_dim, state_dim, action_dim, learning_rate, if_per_or_gae)
     # agent.act.eval()
@@ -227,6 +263,21 @@ def mp_worker(args, pipe_exp):
     if_on_policy = agent.if_on_policy
     _target_step = target_step // worker_num
     del target_step
+
+    if if_vec_env:
+        agent.state = env.reset()
+        with torch.no_grad():
+            while True:
+                # pipe_exp[1].send((agent.act.state_dict(), agent.cri_target.state_dict()))
+                act_state_dict, cri_target_state_dict = pipe_exp[0].recv()
+
+                agent.act.load_state_dict(act_state_dict)
+                agent.cri_target.load_state_dict(cri_target_state_dict)
+                buffer = agent.explore_envs(env, _target_step, reward_scale, gamma)
+                buffer_tuple = agent.prepare_buffers(buffer)
+
+                pipe_exp[0].send(buffer_tuple)
+                # buffer_tuple = pipe_exp[1].recv()
 
     if if_on_policy:
         buffer = ReplayBuffer(max_len=_target_step,
@@ -484,25 +535,6 @@ def mp_evaluator(args, pipe_eva):
           f'| UsedTime: {time.time() - evaluator.start_time:.0f}')
     pipe_eva[0].send(if_train)
     # if_train = pipe_eva[1].recv()
-
-
-def train_and_evaluate_mp(args):
-    import multiprocessing as mp  # Python built-in multiprocessing library
-    process = list()
-
-    pipe_eva = mp.Pipe()
-    process.append(mp.Process(target=mp_evaluator, args=(args, pipe_eva)))
-
-    pipe_exp_list = list()
-    for _ in range(args.worker_num):
-        pipe_exp = mp.Pipe()
-        pipe_exp_list.append(pipe_exp)
-        process.append(mp.Process(target=mp_worker, args=(args, pipe_exp)))
-    process.append(mp.Process(target=mp_learner, args=(args, pipe_exp_list, pipe_eva)))
-
-    [p.start() for p in process]
-    [p.join() for p in (process[-1],)]  # wait
-    [p.terminate() for p in process]
 
 
 # def train_and_evaluate_mp(args):
