@@ -1,4 +1,4 @@
-from elegantrl.env import *
+from elegantrl2.env import *
 
 
 def get_video_to_watch_gym_render():
@@ -10,7 +10,7 @@ def get_video_to_watch_gym_render():
     import pybullet_envs  # for python-bullet-gym
     dir(pybullet_envs)
 
-    # from elegantrl.env import PreprocessEnv
+    # from elegantrl2.env import PreprocessEnv
     env_name = ['BipedalWalker-v3', 'AntBulletEnv-v0',
                 'KukaBulletEnv-v0',
                 'ReacherBulletEnv-v0', 'PusherBulletEnv-v0',
@@ -21,13 +21,13 @@ def get_video_to_watch_gym_render():
     '''initialize agent'''
     agent = None
 
-    from elegantrl.agent import AgentPPO
+    from elegantrl2.agent import AgentPPO
     agent = AgentPPO()
     agent.if_use_dn = True
     net_dim = 2 ** 8
     cwd = f'./{env_name}_4/'
 
-    # from elegantrl.agent import AgentModSAC
+    # from elegantrl2.agent import AgentModSAC
     # agent = AgentModSAC()
     # agent.if_use_dn = True
     # net_dim = 2 ** 8
