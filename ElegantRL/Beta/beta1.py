@@ -1,106 +1,10 @@
-import numpy as np
-import torch
-
 from elegantrl2.demo import *
 from envs.FinRL.StockTrading import *
 
+# from StockTrading import *
 GAP = 4
-MIN_a_k = 4
-
-
-class StockTradingVecEnv(StockTradingEnv):
-    def __init__(self, **kwargs):
-        super(StockTradingVecEnv, self).__init__(**kwargs)
-
-        self.env_num = 2
-        self.initial_capital = np.ones(self.env_num, dtype=np.float32) * self.initial_capital
-        self.initial_stocks = np.tile(self.initial_stocks[np.newaxis, :], (self.env_num, 1))
-        self.price_ary = np.tile(self.price_ary[np.newaxis, :], (self.env_num, 1, 1))
-        self.tech_ary = np.tile(self.tech_ary[np.newaxis, :], (self.env_num, 1, 1))
-
-        self.device = torch.device('cuda')
-
-    def reset_vec(self):
-        with torch.no_grad():
-            self.day = 0
-            price = self.price_ary[:, self.day]
-
-            self.stocks = self.initial_stocks + rd.randint(0, 64, size=self.initial_stocks.shape)
-
-            self.amount = self.initial_capital * rd.uniform(0.95, 1.05) - (self.stocks * price).sum(axis=1)
-
-            self.total_asset = self.initial_capital
-            self.initial_total_asset = self.total_asset
-            self.gamma_reward = np.zeros(self.env_num, dtype=np.float32)
-
-            self.stock_cd = np.zeros_like(price)  # stock_cd
-
-            state = np.hstack((self.amount[:, np.newaxis].clip(None, 1e4) * (2 ** -12),
-                               price,
-                               self.stock_cd,  # stock_cd
-                               self.stocks,
-                               self.tech_ary[:, self.day],
-                               ))
-            state = torch.as_tensor(state, dtype=torch.float32, device=self.device) * (2 ** -5)
-        return state
-
-    def step_vec(self, actions):
-        with torch.no_grad():
-            actions = (actions * self.max_stock).long().detach().cpu().numpy()
-
-            self.day += 1
-            price = self.price_ary[:, self.day]
-
-            self.stock_cd += 64
-
-            min_action = self.max_stock // MIN_a_k  # stock_cd
-            for j in range(self.env_num):
-                for index in np.where(actions[j] < -min_action)[0]:  # sell_index:
-                    if price[j, index] > 0:  # Sell only if current asset is > 0
-                        sell_num_shares = min(self.stocks[j, index], -actions[j, index])
-                        self.stocks[j, index] -= sell_num_shares
-                        self.amount[j] += price[j, index] * sell_num_shares * (1 - self.sell_cost_pct)
-                        self.stock_cd[j, index] = 0  # stock_cd
-
-                for index in np.where(actions[j] > min_action)[0]:  # buy_index:
-                    if price[j, index] > 0:  # Buy only if the price is > 0 (no missing data in this particular date)
-                        buy_num_shares = min(self.amount[j] // price[j, index], actions[j, index])
-                        self.stocks[j, index] += buy_num_shares
-                        self.amount[j] -= price[j, index] * buy_num_shares * (1 + self.buy_cost_pct)
-                        self.stock_cd[j, index] = 0  # stock_cd
-
-            state = np.hstack((self.amount[:, np.newaxis].clip(None, 1e4) * (2 ** -12),
-                               price,
-                               self.stock_cd,  # stock_cd
-                               self.stocks,
-                               self.tech_ary[:, self.day],
-                               ))
-            state = torch.as_tensor(state, dtype=torch.float32, device=self.device) * (2 ** -5)
-
-            total_asset = self.amount + (self.stocks * price).sum(axis=1)
-            reward = (total_asset - self.total_asset) * 2 ** -10  # reward scaling
-            self.total_asset = total_asset
-
-            self.gamma_reward = self.gamma_reward * self.gamma + reward
-            done = self.day == self.max_step
-            if done:
-                reward = self.gamma_reward
-                self.episode_return = total_asset / self.initial_total_asset
-
-                state = self.reset_vec()
-            reward = torch.as_tensor(reward, dtype=torch.float32, device=self.device)
-            done = torch.as_tensor([done, ] * self.env_num, dtype=torch.float32, device=self.device)
-        return state, reward, done, dict()
-
-    def check_vec_env(self):
-        # env = StockTradingVecEnv()
-        self.reset_vec()
-
-        a = torch.zeros((self.env_num, self.action_dim), dtype=torch.float32, device=self.device)
-        s, r, d, _ = self.step_vec(a)
-        print(s.shape)
-        print(r.shape)
-        print(d.shape)
+MinActionRate = 0.25
+Stock_Add = 32  # todo beta1
 
 
 class StockTradingEnv:
@@ -112,8 +16,7 @@ class StockTradingEnv:
         price_ary, tech_ary = self.load_data(cwd, ticker_list, tech_indicator_list,
                                              start_date, end_date, )
 
-        # beg_i, mid_i, end_i = 0, int(1e4), int(2e4)
-        beg_i, mid_i, end_i = 0, int(32e4), int(528026)
+        beg_i, mid_i, end_i = 0, int(2 ** 18), int(2 ** 19)  # int(528026)
         if if_eval:
             self.price_ary = price_ary[beg_i:mid_i:GAP]
             self.tech_ary = tech_ary[beg_i:mid_i:GAP]
@@ -176,9 +79,9 @@ class StockTradingEnv:
         self.day += 1
         price = self.price_ary[self.day]
 
-        self.stock_cd += 64
+        self.stock_cd += Stock_Add
 
-        min_action = self.max_stock // MIN_a_k  # stock_cd
+        min_action = int(self.max_stock * MinActionRate)  # stock_cd
         for index in np.where(actions < -min_action)[0]:  # sell_index:
             if price[index] > 0:  # Sell only if current asset is > 0
                 sell_num_shares = min(self.stocks[index], -actions[index])
@@ -193,13 +96,7 @@ class StockTradingEnv:
                 self.amount -= price[index] * buy_num_shares * (1 + self.buy_cost_pct)
                 self.stock_cd[index] = 0  # stock_cd
 
-        state = np.hstack((max(self.amount, 1e4) * (2 ** -12),
-                           price,
-                           self.stock_cd,  # stock_cd
-                           self.stocks,
-                           self.tech_ary[self.day],
-                           )).astype(np.float32) * (2 ** -5)
-
+        state = self.get_state(price)
         total_asset = self.amount + (self.stocks * price).sum()
         reward = (total_asset - self.total_asset) * 2 ** -10  # reward scaling
         self.total_asset = total_asset
@@ -211,6 +108,15 @@ class StockTradingEnv:
             self.episode_return = total_asset / self.initial_total_asset
 
         return state, reward, done, dict()
+
+    def get_state(self, price):
+        state = np.hstack((max(self.amount, 1e4) * (2 ** -12),
+                           price,
+                           self.stock_cd,  # stock_cd
+                           self.stocks,
+                           self.tech_ary[self.day],
+                           )).astype(np.float32) * (2 ** -5)
+        return state
 
     def load_data(self, cwd='./envs/FinRL', ticker_list=None, tech_indicator_list=None,
                   start_date='2016-01-03', end_date='2021-05-27'):
@@ -437,34 +343,124 @@ class StockTradingEnv:
         return price_ary, tech_ary
 
 
+class StockTradingVecEnv(StockTradingEnv):
+    def __init__(self, env_num, **kwargs):
+        super(StockTradingVecEnv, self).__init__(**kwargs)
+
+        self.env_num = env_num
+        self.initial_capital = np.ones(self.env_num, dtype=np.float32) * self.initial_capital
+        self.initial_stocks = np.tile(self.initial_stocks[np.newaxis, :], (self.env_num, 1))
+        self.price_ary = np.tile(self.price_ary[np.newaxis, :], (self.env_num, 1, 1))
+        self.tech_ary = np.tile(self.tech_ary[np.newaxis, :], (self.env_num, 1, 1))
+
+        self.device = torch.device('cuda')
+
+    def reset_vec(self):
+        with torch.no_grad():
+            self.day = 0
+            price = self.price_ary[:, self.day]
+
+            self.stocks = self.initial_stocks + rd.randint(0, 64, size=self.initial_stocks.shape)
+
+            self.amount = self.initial_capital * rd.uniform(0.95, 1.05) - (self.stocks * price).sum(axis=1)
+
+            self.total_asset = self.initial_capital
+            self.initial_total_asset = self.total_asset
+            self.gamma_reward = np.zeros(self.env_num, dtype=np.float32)
+
+            self.stock_cd = np.zeros_like(price)  # stock_cd
+        return self.get_state(price)  # state
+
+    def step_vec(self, actions):
+        with torch.no_grad():
+            actions = (actions * self.max_stock).long().detach().cpu().numpy()
+
+            self.day += 1
+            price = self.price_ary[:, self.day]
+
+            self.stock_cd += Stock_Add
+
+            min_action = int(self.max_stock * MinActionRate)  # stock_cd
+            for j in range(self.env_num):
+                for index in np.where(actions[j] < -min_action)[0]:  # sell_index:
+                    if price[j, index] > 0:  # Sell only if current asset is > 0
+                        sell_num_shares = min(self.stocks[j, index], -actions[j, index])
+                        self.stocks[j, index] -= sell_num_shares
+                        self.amount[j] += price[j, index] * sell_num_shares * (1 - self.sell_cost_pct)
+                        self.stock_cd[j, index] = 0  # stock_cd
+
+                for index in np.where(actions[j] > min_action)[0]:  # buy_index:
+                    if price[j, index] > 0:  # Buy only if the price is > 0 (no missing data in this particular date)
+                        buy_num_shares = min(self.amount[j] // price[j, index], actions[j, index])
+                        self.stocks[j, index] += buy_num_shares
+                        self.amount[j] -= price[j, index] * buy_num_shares * (1 + self.buy_cost_pct)
+                        self.stock_cd[j, index] = 0  # stock_cd
+
+            state = self.get_state(price)
+
+            total_asset = self.amount + (self.stocks * price).sum(axis=1)
+            reward = (total_asset - self.total_asset) * 2 ** -10  # reward scaling
+            self.total_asset = total_asset
+
+            self.gamma_reward = self.gamma_reward * self.gamma + reward
+            done = self.day == self.max_step
+            if done:
+                reward = self.gamma_reward
+                self.episode_return = total_asset / self.initial_total_asset
+
+                state = self.reset_vec()
+            reward = torch.as_tensor(reward, dtype=torch.float32, device=self.device)
+            done = torch.as_tensor([done, ] * self.env_num, dtype=torch.float32, device=self.device)
+        return state, reward, done, dict()
+
+    def get_state(self, price):
+        state = np.hstack((self.amount[:, np.newaxis].clip(None, 1e4) * (2 ** -12),
+                           price,
+                           self.stock_cd,  # stock_cd
+                           self.stocks,
+                           self.tech_ary[:, self.day],
+                           ))
+        return torch.as_tensor(state, dtype=torch.float32, device=self.device) * (2 ** -5)
+
+    def check_vec_env(self):
+        # env = StockTradingVecEnv()
+        self.reset_vec()
+
+        a = torch.zeros((self.env_num, self.action_dim), dtype=torch.float32, device=self.device)
+        s, r, d, _ = self.step_vec(a)
+        print(s.shape)
+        print(r.shape)
+        print(d.shape)
+
+
 def demo_custom_env_finance_rl():
     from elegantrl2.agent import AgentPPO
 
     '''choose an DRL algorithm'''
     args = Arguments(if_on_policy=True)
     args.agent = AgentPPO()
-    args.agent.lambda_entropy = 0.01
+    args.agent.lambda_entropy = 0.01  # todo ceta3
     args.gpu_id = sys.argv[-1][-4]
-    args.random_seed = 19430
+    args.random_seed = 1943210
 
     "TotalStep: 10e4, TargetReturn: 3.0, UsedTime:  200s, FinanceStock-v1"
     "TotalStep: 20e4, TargetReturn: 4.0, UsedTime:  400s, FinanceStock-v1"
     "TotalStep: 30e4, TargetReturn: 4.2, UsedTime:  600s, FinanceStock-v1"
     # from envs.FinRL.StockTrading import StockTradingEnv
-    args.gamma = 0.999  # todo beta0
+    args.gamma = 0.999
     # args.env = StockTradingEnv(if_eval=False, gamma=gamma)
-    args.env = StockTradingVecEnv(if_eval=False, gamma=args.gamma)
+    args.env = StockTradingVecEnv(if_eval=False, gamma=args.gamma, env_num=2)
     args.env_eval = StockTradingEnv(if_eval=True, gamma=args.gamma)
 
-    args.net_dim = 2 ** 8
+    args.net_dim = 2 ** 9
     args.batch_size = args.net_dim * 4
-    args.target_step = args.env.max_step * 4
+    args.target_step = args.env.max_step
     args.repeat_times = 2 ** 4
 
-    args.eval_gap = 2 ** 9
-    args.eval_times1 = 2 ** 1
-    args.eval_times2 = 2 ** 2
-    args.break_step = int(16e6)
+    args.eval_gap = 2 ** 8
+    args.eval_times1 = 2 ** 0
+    args.eval_times2 = 2 ** 1
+    args.break_step = int(8e6)
 
     '''train and evaluate'''
     # train_and_evaluate(args)
