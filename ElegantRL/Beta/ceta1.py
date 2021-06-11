@@ -11,7 +11,7 @@ def demo_custom_env_finance_rl():
     args.agent = AgentPPO()
     args.agent.lambda_entropy = 0.02
     args.gpu_id = sys.argv[-1][-4]
-    args.random_seed = 194332
+    args.random_seed = 194
 
     "TotalStep: 10e4, TargetReturn: 3.0, UsedTime:  200s, FinanceStock-v1"
     "TotalStep: 20e4, TargetReturn: 4.0, UsedTime:  400s, FinanceStock-v1"
@@ -22,7 +22,6 @@ def demo_custom_env_finance_rl():
     args.env = StockTradingVecEnv(if_eval=False, gamma=args.gamma, env_num=2)
     args.env_eval = StockTradingEnv(if_eval=True, gamma=args.gamma)
 
-    # todo MinActionRate = 0.1
     args.net_dim = int(2 ** 8 * 1.5)
     args.batch_size = args.net_dim * 4
     args.target_step = args.env.max_step
@@ -31,7 +30,7 @@ def demo_custom_env_finance_rl():
     args.eval_gap = 2 ** 8
     args.eval_times1 = 2 ** 0
     args.eval_times2 = 2 ** 1
-    args.break_step = int(8e6)
+    args.break_step = int(4e6)
 
     '''train and evaluate'''
     # train_and_evaluate(args)
