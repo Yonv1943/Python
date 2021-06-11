@@ -2,7 +2,7 @@ import sys
 
 import gym
 from elegantrl2.env import PreprocessEnv, PreprocessVecEnv
-from elegantrl2.run import Arguments, train_and_evaluate, train_and_evaluate_mp
+from elegantrl2.run import Arguments, train_and_evaluate, train_and_evaluate_mp, train_and_evaluate_mg
 
 gym.logger.set_level(40)  # Block warning: 'WARN: Box bound precision lowered by casting to float32'
 
@@ -189,6 +189,34 @@ def demo_custom_env_finance_rl():
     # train_and_evaluate(args)
     args.worker_num = 4
     train_and_evaluate_mp(args)
+
+
+def demo_continuous_action_on_policy_temp_mg():
+    args = Arguments(if_on_policy=True)  # hyper-parameters of on-policy is different from off-policy
+    from elegantrl2.agent import AgentPPO
+    args.agent = AgentPPO()
+    args.agent.cri_target = True
+    args.learning_rate = 2 ** -14
+    args.random_seed = 1943
+    args.gpu_id = (0, 1, 2, 3)
+
+    '''choose environment'''
+    if_train_pendulum = 1
+    if if_train_pendulum:
+        "TotalStep: 4e5, TargetReward: -200, UsedTime: 400s"
+        env = gym.make('Pendulum-v0')
+        env.target_return = -200  # set target_reward manually for env 'Pendulum-v0'
+        args.env = PreprocessEnv(env=env)
+        args.reward_scale = 2 ** -3  # RewardRange: -1800 < -200 < -50 < 0
+        args.net_dim = 2 ** 7
+        args.batch_size = args.net_dim * 2
+        args.target_step = args.env.max_step * 16
+
+    '''train and evaluate'''
+    # train_and_evaluate(args)
+    args.eval_gap /= len(args.gpu_id)
+    args.worker_num = 2
+    train_and_evaluate_mg(args)
 
 
 '''old'''

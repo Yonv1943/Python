@@ -298,8 +298,8 @@ class AgentDDPG(AgentBase):
         self.Act = Actor
         self.Cri = Critic
 
-    def init(self, net_dim, state_dim, action_dim, learning_rate=1e-4, if_use_per=False):
-        super().init(net_dim, state_dim, action_dim, learning_rate)
+    def init(self, net_dim, state_dim, action_dim, learning_rate=1e-4, if_use_per=False, gpu_id=0):
+        super().init(net_dim, state_dim, action_dim, learning_rate, if_use_per, gpu_id)
         self.ou_noise = OrnsteinUhlenbeckNoise(size=action_dim, sigma=self.ou_explore_noise)
 
         if if_use_per:
@@ -660,7 +660,7 @@ class AgentPPO(AgentBase):
             self.optim_update(self.cri_optim, obj_critic * div_r_sum_std)
             self.soft_update(self.cri_target, self.cri, soft_update_tau) if self.cri_target is not self.cri else None
 
-        return obj_critic.item(), obj_actor.item(), old_logprob.mean().item() // self.action_dim  # logging_tuple
+        return obj_critic.item(), obj_actor.item(), old_logprob.mean().item() / self.action_dim  # logging_tuple
 
     def get_reward_sum_raw(self, buf_len, buf_reward, buf_mask, buf_value) -> (torch.Tensor, torch.Tensor):
         buf_r_sum = torch.empty(buf_len, dtype=torch.float32, device=self.device)  # reward sum
