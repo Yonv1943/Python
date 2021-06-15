@@ -44,8 +44,8 @@ class Arguments:
 
         '''Arguments for evaluate'''
         self.eval_gap = 2 ** 6  # evaluate the agent per eval_gap seconds
-        self.eval_times1 = 2 ** 4  # todo 2  # evaluation times
-        self.eval_times2 = 2 ** 6  # todo 4  # evaluation times if 'eval_reward > max_reward'
+        self.eval_times1 = 2 ** 4
+        self.eval_times2 = 2 ** 6
         self.random_seed = 0  # initialize random seed in self.init_before_training()
 
         self.break_step = 2 ** 20  # break training after 'total_step > break_step'
@@ -185,23 +185,20 @@ def train_and_evaluate_mp(args):  # multiple processing
     import multiprocessing as mp  # Python built-in multiprocessing library
     process = list()
 
-    learner_id = 0
     pipe_eva = mp.Pipe()
-    process.append(mp.Process(target=mp_evaluator, args=(args, pipe_eva)))
+    pipe_exp_list = [mp.Pipe() for _ in range(args.worker_num)]
 
-    pipe_exp_list = list()
-    for worker_id in range(args.worker_num):
-        pipe_exp = mp.Pipe()
-        pipe_exp_list.append(pipe_exp)
-        process.append(mp.Process(target=mp_worker, args=(args, pipe_exp, worker_id, learner_id)))
-    process.append(mp.Process(target=mp_learner, args=(args, pipe_exp_list, pipe_eva)))
+    process.append(mp.Process(target=mp_learner, args=(args, pipe_eva, pipe_exp_list)))
+    process.append(mp.Process(target=mp_evaluator, args=(args, pipe_eva)))
+    process.extend([mp.Process(target=mp_worker, args=(args, pipe_exp_list[worker_id], worker_id))
+                    for worker_id in range(args.worker_num)])
 
     [p.start() for p in process]
-    [p.join() for p in (process[-1],)]  # wait
-    [p.terminate() for p in process]
+    process[0].join()
+    process_safely_terminate(process)
 
 
-def mp_worker(args, pipe_exp, worker_id, learner_id):
+def mp_worker(args, pipe_exp, worker_id, learner_id=0):
     args.random_seed += worker_id + learner_id * args.worker_num
     args.init_before_training(process_id=-1)
 
@@ -211,7 +208,7 @@ def mp_worker(args, pipe_exp, worker_id, learner_id):
         env = args.env
         agent = args.agent
         # gpu_id = args.gpu_id
-        worker_num = args.worker_num
+        # worker_num = args.worker_num
 
         '''arguments: train'''
         net_dim = args.net_dim
@@ -241,6 +238,7 @@ def mp_worker(args, pipe_exp, worker_id, learner_id):
         # if_discrete = env.if_discrete
         del args  # In order to show these hyper-parameters clearly, I put them above.
 
+    env.device = torch.device(f'cuda:{learner_id}')
     env_num = getattr(env, 'env_num', 0)
     '''init: Agent, ReplayBuffer, Evaluator'''
     agent.init(net_dim, state_dim, action_dim, learning_rate, if_per_or_gae, learner_id)
@@ -304,8 +302,8 @@ def mp_worker(args, pipe_exp, worker_id, learner_id):
                 # trajectory_list = pipe_exp[1].recv()
 
 
-def mp_learner(args, pipe_exp_list, pipe_eva, process_id=0):
-    args.init_before_training(process_id=process_id)
+def mp_learner(args, pipe_eva, pipe_exp_list, pipe_net_list=None, learner_id=0):
+    args.init_before_training(process_id=learner_id)
 
     if True:
         '''arguments: basic'''
@@ -343,8 +341,11 @@ def mp_learner(args, pipe_exp_list, pipe_eva, process_id=0):
         if_discrete = env.if_discrete
         del args  # In order to show these hyper-parameters clearly, I put them above.
 
+    '''init: Comm'''
+    comm = LearnerComm(pipe_net_list, learner_id) if pipe_net_list is not None else None
+
     '''init: Agent'''
-    agent.init(net_dim, state_dim, action_dim, learning_rate, if_per_or_gae)
+    agent.init(net_dim, state_dim, action_dim, learning_rate, if_per_or_gae, learner_id)
     if_on_policy = agent.if_on_policy
 
     '''init: ReplayBuffer'''
@@ -376,9 +377,9 @@ def mp_learner(args, pipe_exp_list, pipe_eva, process_id=0):
     act_cpu = deepcopy(agent.act).to(torch.device("cpu"))  # for pipe1_eva
     act_cpu.eval()
     [setattr(param, 'requires_grad', False) for param in act_cpu.parameters()]
-
-    pipe_eva[1].send((act_cpu, steps))
-    # act_cpu, steps = pipe_eva[0].recv()
+    if learner_id == 0:
+        pipe_eva[1].send((act_cpu, steps))
+        # act_cpu, steps = pipe_eva[0].recv()
 
     '''start training'''
     if_train = True
@@ -402,9 +403,21 @@ def mp_learner(args, pipe_exp_list, pipe_eva, process_id=0):
                 buffer_tuple = pipe_exp[1].recv()
 
                 # steps += buffer_tuple[0] #
-                steps += buffer_tuple[0].size(0)  # check
+                steps += buffer_tuple[0].size(0)
                 buffer_tuples.append(buffer_tuple)
-            logging_tuple = agent.update_net(buffer_tuples, batch_size, repeat_times, soft_update_tau)
+
+            logging_tuple = agent.update_net(
+                buffer_tuples, batch_size, repeat_times, soft_update_tau)
+            if comm is not None:
+                for round_id in range(comm.round_num):
+                    data = agent.act, agent.cri, agent.act_optim, agent.cri_optim
+                    data = comm.comm(data, round_id)
+
+                    if isinstance(data, tuple):
+                        avg_update_net(agent.act, data[0], agent.device)
+                        avg_update_net(agent.cri, data[1], agent.device)
+                        avg_update_optim(agent.act_optim, data[2], agent.device)
+                        avg_update_optim(agent.cri_optim, data[3], agent.device)
 
         else:
             agent.state = list()
@@ -426,24 +439,26 @@ def mp_learner(args, pipe_exp_list, pipe_eva, process_id=0):
         total_step += steps
 
         '''evaluate'''
-        if not pipe_eva[0].poll():
-            act_cpu.load_state_dict(agent.act.state_dict())
-            act_state_dict = act_cpu.state_dict()
-        else:
-            act_state_dict = None
-        pipe_eva[1].send((act_state_dict, steps, logging_tuple))
-        # act_state_dict, steps, logging_tuple = pipe_eva[0].recv()
+        if learner_id == 0:
+            if not pipe_eva[0].poll():
+                act_cpu.load_state_dict(agent.act.state_dict())
+                act_state_dict = act_cpu.state_dict()
+            else:
+                act_state_dict = None
+            pipe_eva[1].send((act_state_dict, steps, logging_tuple))
+            # act_state_dict, steps, logging_tuple = pipe_eva[0].recv()
 
-        # with torch.no_grad():  # speed up running
-        #     if_reach_goal = evaluator.evaluate_save(agent.act, steps, logging_tuple)
-        # if_train = not ((if_break_early and if_reach_goal)
-        #                 or total_step > break_step
-        #                 or os.path.exists(f'{cwd}/stop'))
+            # with torch.no_grad():  # speed up running
+            #     if_reach_goal = evaluator.evaluate_save(agent.act, steps, logging_tuple)
+            # if_train = not ((if_break_early and if_reach_goal)
+            #                 or total_step > break_step
+            #                 or os.path.exists(f'{cwd}/stop'))
 
         if pipe_eva[1].poll():
             # pipe_eva[0].send(if_train)
             if_train = pipe_eva[1].recv()
 
+    comm.close_comm() if comm is not None else None
     empty_pipe_list(pipe_eva)
     for pipe_exp in pipe_exp_list:
         empty_pipe_list(pipe_exp)
@@ -522,6 +537,15 @@ def mp_evaluator(args, pipe_eva, learner_id=0):
     # if_train = pipe_eva[1].recv()
 
 
+def process_safely_terminate(process):
+    for p in process:
+        try:
+            p.terminate()
+        except OSError as e:
+            print(e)
+            pass
+
+
 def empty_pipe_list(pipe_list):
     for pipe in pipe_list:
         try:
@@ -543,190 +567,25 @@ def train_and_evaluate_mg(args):  # multiple GPU
 
     for learner_id in range(len(args.gpu_id)):
         pipe_exp_list = [mp.Pipe() for _ in range(args.worker_num)]
-        process.append(mp.Process(target=mg_learner, args=(
-            args, pipe_exp_list, pipe_eva_list, pipe_net_list, learner_id)))
+        pipe_eva = pipe_eva_list[learner_id]
 
-        for worker_id in range(args.worker_num):
-            pipe_exp = pipe_exp_list[worker_id]
-            process.append(mp.Process(target=mp_worker, args=(args, pipe_exp, worker_id, learner_id)))
+        process.append(mp.Process(target=mp_learner, args=(args, pipe_eva, pipe_exp_list, pipe_net_list, learner_id)))
+        process.extend([mp.Process(target=mp_worker, args=(args, pipe_exp_list[worker_id], worker_id, learner_id))
+                        for worker_id in range(args.worker_num)])
 
-    process.append(mp.Process(target=mp_evaluator, args=(args, pipe_eva_list[0], 0)))
+    learner_id = 0
+    pipe_eva = pipe_eva_list[learner_id]
+    process.append(mp.Process(target=mp_evaluator, args=(args, pipe_eva, learner_id)))
 
     [p.start() for p in process]
     process[0].join()  # wait
-    [p.terminate() for p in process]
+    for learner_id in range(len(args.gpu_id)):
+        pipe_eva = pipe_eva_list[learner_id]
+        pipe_net = pipe_net_list[learner_id]
 
-
-def mg_learner(args, pipe_exp_list, pipe_eva_list, pipe_net_list, learner_id):
-    args.init_before_training(process_id=learner_id)
-
-    if True:
-        '''arguments: basic'''
-        # cwd = args.cwd
-        env = args.env
-        agent = args.agent
-        # gpu_id = args.gpu_id
-        worker_num = args.worker_num
-
-        '''arguments: train'''
-        net_dim = args.net_dim
-        max_memo = args.max_memo
-        # break_step = args.break_step
-        batch_size = args.batch_size
-        target_step = args.target_step
-        repeat_times = args.repeat_times
-        learning_rate = args.learning_rate
-        # if_break_early = args.if_allow_break
-
-        gamma = args.gamma
-        reward_scale = args.reward_scale
-        if_per_or_gae = args.if_per_or_gae
-        soft_update_tau = args.soft_update_tau
-
-        '''arguments: evaluate'''
-        # show_gap = args.eval_gap
-        # eval_times1 = args.eval_times1
-        # eval_times2 = args.eval_times2
-        # env_eval = deepcopy_or_rebuild_env(env) if args.env_eval is None else args.env_eval
-
-        '''arguments: environment'''
-        # max_step = env.max_step
-        state_dim = env.state_dim
-        action_dim = env.action_dim
-        if_discrete = env.if_discrete
-        del args  # In order to show these hyper-parameters clearly, I put them above.
-
-    '''init: Comm'''
-    comm = LearnerComm(pipe_net_list, learner_id)
-    pipe_eva = pipe_eva_list[0]
-
-    '''init: Agent'''
-    agent.init(net_dim, state_dim, action_dim, learning_rate, if_per_or_gae, learner_id)
-    if_on_policy = agent.if_on_policy
-
-    '''init: ReplayBuffer'''
-    # agent.state = env.reset()
-    if if_on_policy:
-        steps = 0
-        buffer = None
-    else:  # explore_before_training for off-policy
-        buffer = ReplayBufferMP(max_len=target_step if if_on_policy else max_memo, worker_num=worker_num,
-                                if_on_policy=if_on_policy, if_per_or_gae=if_per_or_gae,
-                                state_dim=state_dim, action_dim=action_dim, if_discrete=if_discrete, )
-
-        with torch.no_grad():  # update replay buffer
-            trajectory_list, state = explore_before_training(env, target_step, reward_scale, gamma)
-        agent.state = state
-        steps = len(trajectory_list)
-
-        buffer.buffers[0].extend_buffer_from_list(trajectory_list)
-        agent.update_net(buffer, target_step, batch_size, repeat_times)  # pre-training and hard update
-
-        # hard update for the first time
-        agent.act_target.load_state_dict(agent.act.state_dict()) if getattr(agent, 'act_target', None) else None
-        agent.cri_target.load_state_dict(agent.cri.state_dict()) if getattr(agent, 'cri_target', None) else None
-    total_step = steps
-
-    '''init: Evaluator'''
-    # evaluator = Evaluator(cwd=cwd, agent_id=gpu_id, device=agent.device, env=env_eval,
-    #                       eval_times1=eval_times1, eval_times2=eval_times2, eval_gap=show_gap)  # build Evaluator
-    act_cpu = deepcopy(agent.act).to(torch.device("cpu"))  # for pipe1_eva
-    act_cpu.eval()
-    [setattr(param, 'requires_grad', False) for param in act_cpu.parameters()]
-    if learner_id == 0:
-        pipe_eva[1].send((act_cpu, steps))
-        # act_cpu, steps = pipe_eva[0].recv()
-
-    '''start training'''
-    logging_tuple = None
-    if_train = True
-    while if_train:
-        '''explore'''
-        steps = 0
-        # with torch.no_grad():
-        #     trajectory_list = agent.explore_env(env, target_step, reward_scale, gamma)
-        # buffer.extend_buffer_from_list(trajectory_list)
-        if if_on_policy:
-            act_state_dict = agent.act.state_dict()
-            cri_target_state_dict = agent.cri_target.state_dict()
-            for pipe_exp in pipe_exp_list:
-                pipe_exp[1].send((act_state_dict, cri_target_state_dict))
-                # act_state_dict, cri_target_state_dict = pipe_exp[0].recv()
-
-            # buffer.extend_buffer_from_list(trajectory_list)
-            buffer_tuples = list()
-            for pipe_exp in pipe_exp_list:
-                # pipe_exp[0].send(buffer_tuple)
-                buffer_tuple = pipe_exp[1].recv()
-
-                # steps += buffer_tuple[0] #
-                steps += buffer_tuple[0].size(0)
-                buffer_tuples.append(buffer_tuple)
-
-            comm_gap = 2
-            for _ in range(comm_gap):
-                logging_tuple = agent.update_net(
-                    buffer_tuples, batch_size, repeat_times, soft_update_tau)
-
-                for round_id in range(comm.round_num):
-                    data = (agent.act, agent.cri, agent.act_optim, agent.cri_optim)
-                    data = comm.comm(data, round_id)
-                    comm_act, comm_cri, comm_act_optim, comm_cri_optim = data
-
-                    avg_update_net(agent.act, comm_act, agent.device)
-                    avg_update_net(agent.cri, comm_cri, agent.device)
-                    avg_update_optim(agent.act_optim, comm_act_optim, agent.device)
-                    avg_update_optim(agent.cri_optim, comm_cri_optim, agent.device)
-
-        else:
-            agent.state = list()
-            for pipe_exp in pipe_exp_list:
-                pipe_exp[1].send(agent.act.state_dict())
-                # act_state_dict = pipe_exp[0].recv()
-
-            for pipe_exp, buffer_i in zip(pipe_exp_list, buffer.buffers):
-                # pipe_exp[0].send((trajectory_list, agent.state))
-                trajectory_list, agent_state = pipe_exp[1].recv()
-
-                agent.state.append(agent_state)
-                # steps = len(trajectory_list)
-                steps += trajectory_list[0].shape[0]
-
-                state_ary, other_ary = trajectory_list
-                buffer_i.extend_buffer(state_ary, other_ary)
-            logging_tuple = agent.update_net(buffer, batch_size, repeat_times, soft_update_tau)
-        total_step += steps
-
-        '''evaluate'''
-        if learner_id == 0:
-            if not pipe_eva[0].poll():
-                act_cpu.load_state_dict(agent.act.state_dict())
-                act_state_dict = act_cpu.state_dict()
-            else:
-                act_state_dict = None
-            pipe_eva[1].send((act_state_dict, steps, logging_tuple))
-            # act_state_dict, steps, logging_tuple = pipe_eva[0].recv()
-
-            # with torch.no_grad():  # speed up running
-            #     if_reach_goal = evaluator.evaluate_save(agent.act, steps, logging_tuple)
-            # if_train = not ((if_break_early and if_reach_goal)
-            #                 or total_step > break_step
-            #                 or os.path.exists(f'{cwd}/stop'))
-
-        if pipe_eva[1].poll():
-            # pipe_eva[0].send(if_train)
-            if_train = pipe_eva[1].recv()
-    if learner_id == 0:
-        for pipe_eva_i in pipe_eva_list[1:]:
-            pipe_eva_i[0].send(if_train)
-        for pipe_eva_i in pipe_eva_list[1:]:
-            while pipe_eva_i[1].poll():
-                time.sleep(1)
-
-    comm.close_comm()
-    empty_pipe_list(pipe_eva)
-    for pipe_exp in pipe_exp_list:
-        empty_pipe_list(pipe_exp)
+        pipe_eva[0].send(False)
+        pipe_net[0].send(None)
+    process_safely_terminate(process[1:])
 
 
 class LearnerComm:
@@ -738,10 +597,10 @@ class LearnerComm:
             self.round_num = 1
             if learner_id == 0:
                 self.pipe0 = pipe_net_list[0]
-                self.pipe1 = pipe_net_list[1]
+                self.pipe1 = (pipe_net_list[1],)
             else:  # if learner_id == 1:
                 self.pipe0 = pipe_net_list[1]
-                self.pipe1 = pipe_net_list[0]
+                self.pipe1 = (pipe_net_list[0],)
         else:  # if pipe_num == 4:
             self.round_num = 1
             if learner_id == 0:

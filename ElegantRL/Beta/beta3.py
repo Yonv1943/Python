@@ -9,8 +9,8 @@ def demo_continuous_action_on_policy_temp_mg():
     args.agent.cri_target = True
     args.learning_rate = 2 ** -14
     args.random_seed = 1943590
-    # args.gpu_id = (0, 1, 2, 3)
-    args.gpu_id = (0, 1)  # (2, 3)
+    args.gpu_id = (0, 1, 2, 3)
+    # args.gpu_id = (0, 1)  # (2, 3)
     # args.gpu_id = (2, 3)
     # args.gpu_id = int(sys.argv[-1][-4])
 
@@ -50,9 +50,9 @@ def demo_continuous_action_on_policy_temp_mg():
         args.env_eval = StockTradingEnv(if_eval=True, gamma=args.gamma)
 
         args.agent.cri_target = True
-        args.agent.lambda_entropy = 0.04
+        args.agent.lambda_entropy = 0.05
         args.learning_rate = 2 ** -14
-        args.random_seed = 1943589
+        args.random_seed = 19435890
 
         args.net_dim = int(2 ** 8 * 1.5)
         args.batch_size = args.net_dim * 4

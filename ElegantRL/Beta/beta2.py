@@ -8,18 +8,20 @@ def demo_continuous_action_on_policy_temp_mg():
     args.agent = AgentPPO()
     args.agent.cri_target = True
     args.learning_rate = 2 ** -14
-    args.random_seed = 1943590
+    args.random_seed = 19435
     # args.gpu_id = (0, 1, 2, 3)
-    args.gpu_id = (0, 1)  # (2, 3)
+    args.gpu_id = (0, 1)
     # args.gpu_id = (2, 3)
+    # import sys
     # args.gpu_id = int(sys.argv[-1][-4])
 
     '''choose environment'''
-    if_train_pendulum = 0
+    if_train_pendulum = 1
     if if_train_pendulum:
         "TotalStep: 4e5, TargetReward: -200, UsedTime: 400s"
         env = gym.make('Pendulum-v0')
         env.target_return = -200  # set target_reward manually for env 'Pendulum-v0'
+        env.target_return = -1150  # todo set target_reward manually for env 'Pendulum-v0'
         args.env = PreprocessEnv(env=env)
         args.reward_scale = 2 ** -3  # RewardRange: -1800 < -200 < -50 < 0
         args.net_dim = 2 ** 7
@@ -42,7 +44,7 @@ def demo_continuous_action_on_policy_temp_mg():
         args.agent.lambda_entropy = 0.04
         args.break_step = int(8e6)
 
-    if_train_finance_rl = 1
+    if_train_finance_rl = 0
     if if_train_finance_rl:
         from envs.FinRL.StockTrading import StockTradingEnv, StockTradingVecEnv
         # args.env = StockTradingEnv(if_eval=False, gamma=gamma)
@@ -50,19 +52,18 @@ def demo_continuous_action_on_policy_temp_mg():
         args.env_eval = StockTradingEnv(if_eval=True, gamma=args.gamma)
 
         args.agent.cri_target = True
-        args.agent.lambda_entropy = 0.04
         args.learning_rate = 2 ** -14
-        args.random_seed = 1943589
+        args.random_seed = 19435
 
         args.net_dim = int(2 ** 8 * 1.5)
         args.batch_size = args.net_dim * 4
         args.target_step = args.env.max_step
         args.repeat_times = 2 ** 4
 
-        args.eval_gap = 2 ** 7
+        args.eval_gap = 2 ** 8
         args.eval_times1 = 2 ** 0
         args.eval_times2 = 2 ** 1
-        args.break_step = int(16e6)
+        args.break_step = int(8e6)
         args.if_allow_break = False
 
     '''train and evaluate'''

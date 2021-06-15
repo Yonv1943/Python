@@ -158,65 +158,47 @@ def demo_continuous_action_on_policy():
 
 
 def demo_custom_env_finance_rl():
-    from elegantrl2.agent import AgentPPO
-
-    '''choose an DRL algorithm'''
-    args = Arguments(if_on_policy=True)
-    args.agent = AgentPPO()
-    args.agent.lambda_entropy = 0.01
-    args.gpu_id = sys.argv[-1][-4]
-
-    "TotalStep: 10e4, TargetReturn: 3.0, UsedTime:  200s, FinanceStock-v1"
-    "TotalStep: 20e4, TargetReturn: 4.0, UsedTime:  400s, FinanceStock-v1"
-    "TotalStep: 30e4, TargetReturn: 4.2, UsedTime:  600s, FinanceStock-v1"
-    from envs.FinRL.StockTrading import StockTradingEnv
-    gamma = 0.995
-    args.env = StockTradingEnv(if_eval=False, gamma=gamma)
-    args.env_eval = StockTradingEnv(if_eval=True, gamma=gamma)
-
-    args.gamma = gamma
-    args.break_step = int(3e5)
-    args.net_dim = 2 ** 9
-    args.batch_size = args.net_dim * 4
-    args.target_step = args.env.max_step * 4
-    args.repeat_times = 2 ** 3
-    args.eval_gap = 2 ** 6
-    args.eval_times1 = 2 ** 1
-    args.eval_times2 = 2 ** 2
-    args.break_step = int(1e7)
-
-    '''train and evaluate'''
-    # train_and_evaluate(args)
-    args.worker_num = 4
-    train_and_evaluate_mp(args)
-
-
-def demo_continuous_action_on_policy_temp_mg():
     args = Arguments(if_on_policy=True)  # hyper-parameters of on-policy is different from off-policy
     from elegantrl2.agent import AgentPPO
     args.agent = AgentPPO()
     args.agent.cri_target = True
     args.learning_rate = 2 ** -14
-    args.random_seed = 1943
-    args.gpu_id = (0, 1, 2, 3)
+    args.random_seed = 19435
+    # args.gpu_id = (0, 1, 2, 3)
+    # args.gpu_id = (0, 1)  # (2, 3)
+    args.gpu_id = (2, 3)
 
-    '''choose environment'''
-    if_train_pendulum = 1
-    if if_train_pendulum:
-        "TotalStep: 4e5, TargetReward: -200, UsedTime: 400s"
-        env = gym.make('Pendulum-v0')
-        env.target_return = -200  # set target_reward manually for env 'Pendulum-v0'
-        args.env = PreprocessEnv(env=env)
-        args.reward_scale = 2 ** -3  # RewardRange: -1800 < -200 < -50 < 0
-        args.net_dim = 2 ** 7
-        args.batch_size = args.net_dim * 2
-        args.target_step = args.env.max_step * 16
+    "TotalStep: 52e5, TargetReturn: 2.35, UsedTime:  3934s, FinanceStock-v2"
+    "TotalStep: 81e5, TargetReturn: 2.47, UsedTime:  6129s, FinanceStock-v2"
+    from envs.FinRL.StockTrading import StockTradingEnv, StockTradingVecEnv
+    # args.env = StockTradingEnv(if_eval=False, gamma=gamma)
+    args.env = StockTradingVecEnv(if_eval=False, gamma=args.gamma, env_num=2)
+    args.env_eval = StockTradingEnv(if_eval=True, gamma=args.gamma)
+
+    args.agent.cri_target = True
+    args.learning_rate = 2 ** -14
+    args.random_seed = 19435
+
+    args.net_dim = int(2 ** 8 * 1.5)
+    args.batch_size = args.net_dim * 4
+    args.target_step = args.env.max_step
+    args.repeat_times = 2 ** 4
+
+    args.eval_gap = 2 ** 8
+    args.eval_times1 = 2 ** 0
+    args.eval_times2 = 2 ** 1
+    args.break_step = int(8e6)
+    args.if_allow_break = False
 
     '''train and evaluate'''
     # train_and_evaluate(args)
-    args.eval_gap /= len(args.gpu_id)
     args.worker_num = 2
-    train_and_evaluate_mg(args)
+    if isinstance(args.gpu_id, int) or isinstance(args.gpu_id, str):
+        train_and_evaluate_mp(args)
+    elif isinstance(args.gpu_id, tuple) or isinstance(args.gpu_id, list):
+        train_and_evaluate_mg(args)
+    else:
+        print(f"Error in args.gpu_id {args.gpu_id}, type {type(args.gpu_id)}")
 
 
 '''old'''
