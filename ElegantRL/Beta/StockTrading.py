@@ -4,28 +4,24 @@ import numpy as np
 import numpy.random as rd
 import torch
 
-GAP = 4
-MinActionRate = 0.25
-Stock_Add = 64
-
 
 class StockTradingEnv:
     def __init__(self, cwd='./envs/FinRL', gamma=0.995,
                  max_stock=1e2, initial_capital=1e6, buy_cost_pct=1e-3, sell_cost_pct=1e-3,
-                 start_date='2008-03-19', end_date='2016-01-01',
+                 start_date='2008-03-19', end_date='2016-01-01', data_gap=4,
                  ticker_list=None, tech_indicator_list=None, initial_stocks=None, if_eval=False):
-
+        self.min_stock_rate = 0.1
         price_ary, tech_ary = self.load_data(cwd, ticker_list, tech_indicator_list,
                                              start_date, end_date, )
 
         # beg_i, mid_i, end_i = 0, int(2 ** 18), int(2 ** 19)  # int(528026)
         beg_i, mid_i, end_i = 0, int(32e4), int(528026)
         if if_eval:
-            self.price_ary = price_ary[beg_i:mid_i:GAP]
-            self.tech_ary = tech_ary[beg_i:mid_i:GAP]
+            self.price_ary = price_ary[beg_i:mid_i:data_gap]
+            self.tech_ary = tech_ary[beg_i:mid_i:data_gap]
         else:
-            self.price_ary = price_ary[mid_i:end_i:GAP]
-            self.tech_ary = tech_ary[mid_i:end_i:GAP]
+            self.price_ary = price_ary[mid_i:end_i:data_gap]
+            self.tech_ary = tech_ary[mid_i:end_i:data_gap]
 
         stock_dim = self.price_ary.shape[1]
 
@@ -52,7 +48,7 @@ class StockTradingEnv:
         self.action_dim = stock_dim
         self.max_step = self.price_ary.shape[0] - 1
         self.if_discrete = False
-        self.target_return = 4
+        self.target_return = 2.2
         self.episode_return = 0.0
 
     def reset(self):
@@ -82,9 +78,9 @@ class StockTradingEnv:
         self.day += 1
         price = self.price_ary[self.day]
 
-        self.stock_cd += Stock_Add
+        self.stock_cd += 64
 
-        min_action = int(self.max_stock * MinActionRate)  # stock_cd
+        min_action = int(self.max_stock * self.min_stock_rate)  # stock_cd
         for index in np.where(actions < -min_action)[0]:  # sell_index:
             if price[index] > 0:  # Sell only if current asset is > 0
                 sell_num_shares = min(self.stocks[index], -actions[index])
@@ -381,9 +377,8 @@ class StockTradingVecEnv(StockTradingEnv):
             self.day += 1
             price = self.price_ary[:, self.day]
 
-            self.stock_cd += Stock_Add
-
-            min_action = int(self.max_stock * MinActionRate)  # stock_cd
+            self.stock_cd += 64
+            min_action = int(self.max_stock * self.min_stock_rate)  # stock_cd
             for j in range(self.env_num):
                 for index in np.where(actions[j] < -min_action)[0]:  # sell_index:
                     if price[j, index] > 0:  # Sell only if current asset is > 0
