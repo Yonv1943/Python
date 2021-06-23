@@ -222,7 +222,8 @@ def get_gym_env_info(env, if_print) -> (str, int, int, int, int, bool, float):
     """
     assert isinstance(env, gym.Env)
 
-    env_name = env.unwrapped.spec.id
+    env_name = getattr(env, 'env_name', None)
+    env_name = env.unwrapped.spec.id if env_name is None else None
 
     state_shape = env.observation_space.shape
     state_dim = state_shape[0] if len(state_shape) == 1 else state_shape  # sometimes state_dim is a list

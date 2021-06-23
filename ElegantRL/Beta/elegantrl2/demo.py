@@ -159,46 +159,210 @@ def demo_continuous_action_on_policy():
 
 def demo_custom_env_finance_rl():
     args = Arguments(if_on_policy=True)  # hyper-parameters of on-policy is different from off-policy
+    args.random_seed = 0
+
     from elegantrl2.agent import AgentPPO
     args.agent = AgentPPO()
     args.agent.cri_target = True
+    args.agent.lambda_entropy = 0.04
+
+    from envs.FinRL.StockTrading import StockEnvNAS89, StockVecEnvNAS89
+    args.gamma = 0.999
+    args.env = StockEnvNAS89(if_eval=False, gamma=args.gamma)
+    args.env_eval = StockEnvNAS89(if_eval=True, gamma=args.gamma)
+
+    args.repeat_times = 2 ** 4
     args.learning_rate = 2 ** -14
-    args.random_seed = 19435
-    # args.gpu_id = (0, 1, 2, 3)
-    # args.gpu_id = (0, 1)  # (2, 3)
-    args.gpu_id = (2, 3)
+    args.net_dim = int(2 ** 8 * 1.5)
+    args.batch_size = args.net_dim * 4
+
+    if_single_env = 0
+    if if_single_env:
+        args.gpu_id = 0
+        args.worker_num = 4
+        train_and_evaluate_mp(args)
+
+    if_batch_env = 1
+    if if_batch_env:
+        args.env = StockVecEnvNAS89(if_eval=False, gamma=args.gamma, env_num=2)
+        args.gpu_id = 0
+        args.worker_num = 2
+        train_and_evaluate_mp(args)
+
+    if_multi_learner = 0
+    if if_multi_learner:
+        args.env = StockVecEnvNAS89(if_eval=False, gamma=args.gamma, env_num=2)
+        args.gpu_id = (0, 1)
+        args.worker_num = 2
+        train_and_evaluate_mg(args)
 
     "TotalStep: 52e5, TargetReturn: 2.35, UsedTime:  3934s, FinanceStock-v2"
     "TotalStep: 81e5, TargetReturn: 2.47, UsedTime:  6129s, FinanceStock-v2"
-    from envs.FinRL.StockTrading import StockTradingEnv, StockTradingVecEnv
-    # args.env = StockTradingEnv(if_eval=False, gamma=gamma)
-    args.env = StockTradingVecEnv(if_eval=False, gamma=args.gamma, env_num=2)
-    args.env_eval = StockTradingEnv(if_eval=True, gamma=args.gamma)
+    "TotalStep: 19e5, TargetReturn: 2.50, UsedTime:  1654s, FinanceStock-v2 GPU 2, 3"
+    "TotalStep: 65e5, TargetReturn: 4.61, UsedTime:  5659s, FinanceStock-v2 GPU 2, 3"
+    "TotalStep: 18e5, TargetReturn: 2.50, UsedTime:  1452s, FinanceStock-v2 GPU 0, 1"
+    "TotalStep: 61e5, TargetReturn: 3.92, UsedTime:  4921s, FinanceStock-v2 GPU 0, 1"
+    "TotalStep:  4e5, TargetReturn: 2.20, UsedTime:   583s, FinanceStock-v2 GPU 0, 1, 2, 3"
+    "TotalStep: 11e6, TargetReturn: 4.39, UsedTime:  9648s, FinanceStock-v2 GPU 0, 1, 2, 3"
 
+
+def demo_custom_env_finance_rl_dow30():  # 1.7+ 2.0+
+    args = Arguments(if_on_policy=True)  # hyper-parameters of on-policy is different from off-policy
+    args.random_seed = 19430
+
+    from elegantrl2.agent import AgentPPO
+    args.agent = AgentPPO()
     args.agent.cri_target = True
-    args.learning_rate = 2 ** -14
-    args.random_seed = 19435
+    args.agent.lambda_entropy = 0.02
 
+    args.gamma = 0.995
+
+    from envs.FinRL.StockTrading import StockEnvDOW30, StockVecEnvDOW30
+    args.env = StockEnvDOW30(if_eval=False, gamma=args.gamma)
+    args.env_eval = StockEnvDOW30(if_eval=True, gamma=args.gamma)
+
+    args.repeat_times = 2 ** 4
+    args.learning_rate = 2 ** -14
+    args.net_dim = 2 ** 8
+    args.batch_size = args.net_dim
+
+    args.eval_gap = 2 ** 7
+    args.eval_times1 = 2 ** 0
+    args.eval_times2 = 2 ** 1
+    args.break_step = int(10e6)
+    args.if_allow_break = False
+
+    if_single_env = 0
+    if if_single_env:
+        args.gpu_id = int(sys.argv[-1][-4])
+        args.random_seed += int(args.gpu_id)
+        args.target_step = args.env.max_step * 4
+        args.worker_num = 4
+        train_and_evaluate_mp(args)
+
+    if_batch_env = 1
+    if if_batch_env:
+        args.env = StockVecEnvDOW30(if_eval=False, gamma=args.gamma, env_num=4)
+        args.gpu_id = int(sys.argv[-1][-4])
+        args.random_seed += args.gpu_id
+        args.target_step = args.env.max_step
+        args.worker_num = 4
+        train_and_evaluate_mp(args)
+
+    if_multi_learner = 0
+    if if_multi_learner:
+        args.env = StockVecEnvDOW30(if_eval=False, gamma=args.gamma, env_num=2)
+        args.gpu_id = (0, 1)
+        args.worker_num = 2
+        train_and_evaluate_mg(args)
+
+
+def demo_custom_env_finance_rl_nas89():
+    args = Arguments(if_on_policy=True)  # hyper-parameters of on-policy is different from off-policy
+    args.random_seed = 1943
+
+    from elegantrl2.agent import AgentPPO
+    args.agent = AgentPPO()
+    args.agent.cri_target = True
+    args.agent.lambda_entropy = 0.04
+
+    from envs.FinRL.StockTrading import StockEnvDOW30, StockEnvNAS89, StockVecEnvNAS89
+    args.gamma = 0.999
+
+    if_dow30_daily = 1
+    if if_dow30_daily:
+        args.env = StockEnvDOW30(if_eval=False, gamma=args.gamma)
+        args.env_eval = StockEnvDOW30(if_eval=True, gamma=args.gamma)
+    else:  # elif if_nas89_minute:
+        args.env = StockEnvNAS89(if_eval=False, gamma=args.gamma)
+        args.env_eval = StockEnvNAS89(if_eval=True, gamma=args.gamma)
+
+    args.repeat_times = 2 ** 4
+    args.learning_rate = 2 ** -14
     args.net_dim = int(2 ** 8 * 1.5)
     args.batch_size = args.net_dim * 4
     args.target_step = args.env.max_step
-    args.repeat_times = 2 ** 4
 
     args.eval_gap = 2 ** 8
     args.eval_times1 = 2 ** 0
     args.eval_times2 = 2 ** 1
-    args.break_step = int(8e6)
+    args.break_step = int(16e6)
     args.if_allow_break = False
 
-    '''train and evaluate'''
-    # train_and_evaluate(args)
-    args.worker_num = 2
-    if isinstance(args.gpu_id, int) or isinstance(args.gpu_id, str):
+    if_single_env = 1
+    if if_single_env:
+        args.gpu_id = 0
+        args.worker_num = 4
         train_and_evaluate_mp(args)
-    elif isinstance(args.gpu_id, tuple) or isinstance(args.gpu_id, list):
+
+    if_batch_env = 0
+    if if_batch_env:
+        args.env = StockVecEnvNAS89(if_eval=False, gamma=args.gamma, env_num=2)
+        args.gpu_id = 3
+        args.random_seed += args.gpu_id
+        args.worker_num = 2
+        train_and_evaluate_mp(args)
+
+    if_multi_learner = 0
+    if if_multi_learner:
+        args.env = StockVecEnvNAS89(if_eval=False, gamma=args.gamma, env_num=2)
+        args.gpu_id = (0, 1)
+        args.worker_num = 2
         train_and_evaluate_mg(args)
-    else:
-        print(f"Error in args.gpu_id {args.gpu_id}, type {type(args.gpu_id)}")
+
+
+# def demo_custom_env_finance_rl_nas89():
+#     args = Arguments(if_on_policy=True)  # hyper-parameters of on-policy is different from off-policy
+#     args.random_seed = 1943
+#
+#     from elegantrl2.agent import AgentPPO
+#     args.agent = AgentPPO()
+#     args.agent.cri_target = True
+#     args.agent.lambda_entropy = 0.04
+#
+#     from envs.FinRL.StockTrading import StockEnvDOW30, StockEnvNAS89, StockVecEnvNAS89
+#     args.gamma = 0.999
+#
+#     if_dow30_daily = 1
+#     if if_dow30_daily:
+#         args.env = StockEnvDOW30(if_eval=False, gamma=args.gamma)
+#         args.env_eval = StockEnvDOW30(if_eval=True, gamma=args.gamma)
+#     else:  # elif if_nas89_minute:
+#         args.env = StockEnvNAS89(if_eval=False, gamma=args.gamma)
+#         args.env_eval = StockEnvNAS89(if_eval=True, gamma=args.gamma)
+#
+#     args.repeat_times = 2 ** 4
+#     args.learning_rate = 2 ** -14
+#     args.net_dim = int(2 ** 8 * 1.5)
+#     args.batch_size = args.net_dim * 4
+#     args.target_step = args.env.max_step
+#
+#     args.eval_gap = 2 ** 8
+#     args.eval_times1 = 2 ** 0
+#     args.eval_times2 = 2 ** 1
+#     args.break_step = int(16e6)
+#     args.if_allow_break = False
+#
+#     if_single_env = 1
+#     if if_single_env:
+#         args.gpu_id = 0
+#         args.worker_num = 4
+#         train_and_evaluate_mp(args)
+#
+#     if_batch_env = 0
+#     if if_batch_env:
+#         args.env = StockVecEnvNAS89(if_eval=False, gamma=args.gamma, env_num=2)
+#         args.gpu_id = 3
+#         args.random_seed += args.gpu_id
+#         args.worker_num = 2
+#         train_and_evaluate_mp(args)
+#
+#     if_multi_learner = 0
+#     if if_multi_learner:
+#         args.env = StockVecEnvNAS89(if_eval=False, gamma=args.gamma, env_num=2)
+#         args.gpu_id = (0, 1)
+#         args.worker_num = 2
+#         train_and_evaluate_mg(args)
 
 
 '''old'''
@@ -320,10 +484,10 @@ def demo_custom_env_finance_rl():
 #     "TotalStep: 17e5, TargetReward: 910, UsedTime:   ks, HumanoidBulletEnv-v0 ModSAC"
 #     args.agent = AgentModSAC()  # AgentSAC(), AgentTD3(), AgentDDPG()
 #     args.agent.if_use_dn = False
-#     args.agent.repeat_times = 8  # todo
-#     args.agent.learning_rate = 2e-5  # todo
+#     args.agent.repeat_times = 8
+#     args.agent.learning_rate = 2e-5
 #
-#     args.env = PreprocessEnv(env=gym.make('HumanoidBulletEnv-v0'))  # todo
+#     args.env = PreprocessEnv(env=gym.make('HumanoidBulletEnv-v0'))
 #     args.break_step = int(8e5 * 8)  # (5e5) 1e6, UsedTime: (15,000s) 30,000s
 #     args.if_allow_break = False
 #     args.reward_scale = 2 ** -3

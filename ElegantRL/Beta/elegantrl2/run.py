@@ -68,7 +68,7 @@ class Arguments:
 
         if self.cwd is None:
             agent_name = self.agent.__class__.__name__
-            self.cwd = f'./{self.env.env_name}_{agent_name}'
+            self.cwd = f'./{self.env.env_name}_{agent_name}_{self.gpu_id}'
 
         if process_id == 0:
             print(f'| GPU id: {self.gpu_id}, cwd: {self.cwd}')
@@ -439,6 +439,7 @@ def mp_learner(args, pipe_eva, pipe_exp_list, pipe_net_list=None, learner_id=0):
         total_step += steps
 
         '''evaluate'''
+
         if learner_id == 0:
             if not pipe_eva[0].poll():
                 act_cpu.load_state_dict(agent.act.state_dict())
@@ -664,7 +665,7 @@ class Evaluator:
 
         self.used_time = None
         self.start_time = time.time()
-        self.eval_time = time.time() - self.eval_gap
+        self.eval_time = 0
         print(f"{'ID':>2} {'Step':>8} {'MaxR':>8} |"
               f"{'avgR':>8} {'stdR':>8} |{'avgS':>5} {'stdS':>4} |"
               f"{'objC':>8} {'etc.':>8}")
