@@ -257,10 +257,13 @@ def demo__vec_env_with_custom_env(num_envs=8):
 
 if __name__ == '__main__':
     multiprocessing.set_start_method('spawn')
+    ListNumEnvs = [2 ** n for n in range(1, 10)]
 
-    ListNumEnvs = [2 ** n for n in range(9)]
+    print('| demo__vec_env_with_custom_env')
     for n in ListNumEnvs:
         demo__vec_env_with_custom_env(num_envs=n)
+
+    print('| demo__vec_env_with_gym_env')
     for n in ListNumEnvs:
         demo__vec_env_with_gym_env(num_envs=n)
 
