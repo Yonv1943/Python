@@ -94,6 +94,3 @@ if __name__ == '__main__':
         result = pool.map_async(task, [1.5, 1.2, 1.3, 1.4])
         result = result.get()
         print(f'Got: {result}')
-
-
-
