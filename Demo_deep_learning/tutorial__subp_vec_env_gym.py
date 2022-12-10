@@ -96,6 +96,7 @@ class VecEnvSync:
         self.if_discrete = env_args['if_discrete']  # discrete action or continuous action
 
         '''speed up with multiprocessing: Process, Pipe'''
+        assert self.num_envs <= 64
         self.pipes, pipes = list(zip(*[Pipe() for _ in range(self.num_envs)]))
         self.sub_envs = [SubEnvSync(pipe=pipe, env_class=env_class, env_args=env_args, env_id=env_id)
                          for env_id, pipe in enumerate(pipes)]
@@ -168,6 +169,7 @@ class VecEnvAsync:
         self.if_discrete = env_args['if_discrete']  # discrete action or continuous action
 
         '''speed up with multiprocessing: Process, Pipe'''
+        assert self.num_envs <= 64
         pipes, self.pipes = list(zip(*[Pipe(duplex=False) for _ in range(self.num_envs)]))
         self.main_p, main_p = Pipe(duplex=False)
         self.sub_envs = [SubEnvAsync(pipe=pipe, env_class=env_class, env_args=env_args, env_id=env_id, main_p=main_p)
@@ -259,9 +261,9 @@ if __name__ == '__main__':
     multiprocessing.set_start_method('spawn')
     ListNumEnvs = [2 ** n for n in range(1, 10)]
 
-    print('| demo__vec_env_with_custom_env')
-    for n in ListNumEnvs:
-        demo__vec_env_with_custom_env(num_envs=n)
+    # print('| demo__vec_env_with_custom_env')
+    # for n in ListNumEnvs:
+    #     demo__vec_env_with_custom_env(num_envs=n)
 
     print('| demo__vec_env_with_gym_env')
     for n in ListNumEnvs:
@@ -269,6 +271,7 @@ if __name__ == '__main__':
 
 """
 VecEnvSync
+| demo__vec_env_with_custom_env                                                                                    
 NumEnvs:    2 | UsedTime:    13.9059     6.9529
 NumEnvs:    4 | UsedTime:    19.2333     4.8083
 NumEnvs:    8 | UsedTime:    32.5779     4.0722
@@ -276,19 +279,22 @@ NumEnvs:   16 | UsedTime:    57.2705     3.5794
 NumEnvs:   32 | UsedTime:   105.3062     3.2908
 NumEnvs:   64 | UsedTime:   211.1338     3.2990
 
-VecEnvAsync1 `tensor[env_ids]`
-NumEnvs:    2 | UsedTime:    14.6936     7.3468
-NumEnvs:    4 | UsedTime:    20.9482     5.2370
-NumEnvs:    8 | UsedTime:    31.2089     3.9011
-NumEnvs:   16 | UsedTime:    51.7776     3.2361
-NumEnvs:   32 | UsedTime:    93.5009     2.9219
-NumEnvs:   64 | UsedTime:   178.4156     2.7877
+VecEnvAsync
+| demo__vec_env_with_custom_env                                                                                    
+NumEnvs:    2 | UsedTime:    10.8249     5.4124                                                                    
+NumEnvs:    4 | UsedTime:    15.1600     3.7900                                                                    
+NumEnvs:    8 | UsedTime:    25.9492     3.2437                                                                    
+NumEnvs:   16 | UsedTime:    46.3975     2.8998                                                                    
+NumEnvs:   32 | UsedTime:    87.0220     2.7194                                                                    
+NumEnvs:   64 | UsedTime:   161.7657     2.5276                                                                    
+NumEnvs:  128 | UsedTime:   335.8240     2.6236 
 
-VecEnvAsync2 `get_orderly_zip_list_return`
-NumEnvs:    2 | UsedTime:    13.7087     6.8544
-NumEnvs:    4 | UsedTime:    20.6020     5.1505
-NumEnvs:    8 | UsedTime:    29.5131     3.6891
-NumEnvs:   16 | UsedTime:    53.8905     3.3682
-NumEnvs:   32 | UsedTime:    88.0039     2.7501
-NumEnvs:   64 | UsedTime:   162.9671     2.5464
+| demo__vec_env_with_gym_env
+NumEnvs:    2 | UsedTime:    14.0697     7.0349
+NumEnvs:    4 | UsedTime:    19.8187     4.9547
+NumEnvs:    8 | UsedTime:    28.2857     3.5357
+NumEnvs:   16 | UsedTime:    49.3061     3.0816
+NumEnvs:   32 | UsedTime:    87.6757     2.7399
+NumEnvs:   64 | UsedTime:   170.7165     2.6674
+NumEnvs:  128 | UsedTime:   348.3861     2.7218
 """
