@@ -71,35 +71,28 @@ def download_cifar10_data(image_size, data_name='', data_path='./Data') -> [torc
     return train_image, None,  # train_label, test_image, test_label
 
 
-def download_mnist_data(data_path='./Data') -> [torch.tensor, ] * 4:
-    os.makedirs(data_path, exist_ok=True)
+def download_mnist_data(data_dir='./data'):
+    data_path = f"{data_dir}/FashionMNIST_data_70000x28x28.pth"
+    target_path = f"{data_dir}/FashionMNIST_target_70000.pth"
 
-    from torchvision import datasets
-    data_train = datasets.FashionMNIST("./Data", train=True, download=True, )
-    data_test = datasets.FashionMNIST("./Data", train=False, download=True, )
-    print(data_train)
+    if all([os.path.isfile(path) for path in (data_path, target_path)]):
+        data = torch.load(data_path)
+        target = torch.load(target_path)
+    else:
+        from torchvision import datasets
+        data_train = datasets.FashionMNIST(data_dir, train=True, download=True, )
+        data_test = datasets.FashionMNIST(data_dir, train=False, download=True, )
 
-    def to_images(ary, ):
-        # ary = ten.numpy()
-        ary = ary / 255.0
-        ary = ary.reshape((-1, 3, 28, 28))
-        ary = np.pad(ary, ((0, 0), (0, 0), (2, 2), (2, 2)), mode='constant')
-        ary = ary.reshape((-1, 1, 28, 28, 3))
-        ary = torch.tensor(ary, dtype=torch.float32)
-        return ary
+        print(data_train)
+        print(data_test)
 
-    def to_labels(ary, ):
-        ary = ary.reshape((-1,))
-        # classes_num = 10
-        # data_sets = np.eye(classes_num)[data_sets] # one_hot
-        ary = torch.tensor(ary, dtype=torch.long)
-        return ary
+        data = torch.cat((data_train.data, data_test.data), dim=0)
+        target = torch.cat((data_train.targets, data_test.targets), dim=0)
 
-    train_image = to_images(data_train.data)
-    train_label = to_labels(data_train.targets)
-    test_image = to_images(data_test.data)
-    test_label = to_labels(data_test.targets)
-    return train_image, train_label, test_image, test_label
+        torch.save(data, data_path)
+        torch.save(target, target_path)
+
+    return data, target
 
 
 def load_data(data_path, img_shape=(32, 32, 3)):  # 2021-01-28
