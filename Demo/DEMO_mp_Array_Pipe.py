@@ -18,7 +18,7 @@ def convert_mp_to_np(mp_array):
 def worker0(mp_ary, pipe0):
     import time
 
-    time.sleep(1)
+    time.sleep(1) //The sleep() function suspends (waits) execution of the current thread for a given number of seconds
 
     ary = convert_mp_to_np(mp_ary)
     print(0, ary)
