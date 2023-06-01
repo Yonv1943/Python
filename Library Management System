@@ -1,0 +1,119 @@
+
+import pickle
+import os
+
+lib_data = {}
+
+
+def add_books():
+    file = open("library.dat", 'ab')
+    num = int(input("Enter Number of Books you want to add : "))
+    for i in range(num):
+        print(f"Enter Details of Books-{i+1} : ")
+        lib_data["bookNo"] = int(input("Enter the Number of book : "))
+        lib_data["bname"] = input("Enter Name of the Book : ")
+        lib_data["price"] = int(input("Enter price of the Book : "))
+        pickle.dump(lib_data, file)
+    file.close()
+
+
+def show_books():
+    file = open('library.dat', 'rb')
+    try:
+        while True:
+            data = pickle.load(file)
+            print(data)
+    except EOFError:
+        pass
+    file.close()
+
+
+def search_book():
+    file = open('library.dat', 'rb')
+    bookNo = int(input("Enter Book Number you want to Search : "))
+    found = 0
+    try:
+        while True:
+            data = pickle.load(file)
+            if data["bookNo"] == bookNo:
+                print("\nRecord Found : ")
+                print(data)
+                found = 1
+                break
+    except EOFError:
+        pass
+    if found == 0:
+        print(f"Book-{bookNo} Not Found!")
+    file.close()
+
+
+def update_booK():
+    bdata1 = open("library.dat", "rb")
+    bdata2 = open("temp.dat", "ab")
+    bookNo = int(input("Enter Book Number to Update : "))
+    try:
+        while True:
+            data = pickle.load(bdata1)
+            if data["bookNo"] == bookNo:
+                print(f"\nEnter New Details of Book-{bookNo} : ")
+                data["bookNo"] = int(input("Enter Number of Book : "))
+                data["bname"] = input("Enter Name of Book : ")
+                data["price"] = int(input("Enter Price of Book : "))
+                pickle.dump(data, bdata2)
+                print("Data Updated Successfully")
+            else:
+                pickle.dump(data, bdata2)
+    except EOFError:
+        pass
+    bdata1.close()
+    bdata2.close()
+    os.remove("library.dat")
+    os.rename("temp.dat", "library.dat")
+
+
+def remove_book():
+    bdata1 = open("library.dat", "rb")
+    bdata2 = open("temp.dat", "ab")
+    bookNo = int(input("Enter Book Number to Delete : "))
+    try:
+        while True:
+            data = pickle.load(bdata1)
+            if data["bookNo"] == bookNo:
+                print(f"Book-{bookNo} Deleted Successfully.")
+                pass
+            else:
+                pickle.dump(data, bdata2)
+    except EOFError:
+        pass
+    bdata1.close()
+    bdata2.close()
+    os.remove("library.dat")
+    os.rename("temp.dat", "library.dat")
+
+while True:
+    print('\nOperations :\n 1 - Add Book Details.\n 2 - Show Book Details\n 3 - Update Book Details. ')
+    print(' 4 - Delete Book Detail.\n 5 - Search Book.\n 6 - Clock.\n 7 - EXIT.')
+    op = int(input("\nEnter Number to Choose Operation : "))
+    if op == 1:
+        add_books()
+    elif op == 2:
+        print(f"\nBooks Details : ")
+        show_books()
+    elif op == 3:
+        update_booK()
+    elif op == 4:
+        remove_book()
+    elif op == 5:
+        search_book()
+    elif op == 6:
+        import time
+        live_time = time.strftime("%H:%M:%S")
+        print(f"\n| The Current timings are : {live_time} |")
+    elif op == 7:
+        print("Thanks for Using Library Management System")
+        print("Creators of Library Management System :\n "
+              "| Akash kumar Singh |")
+        break
+    else:
+        print("Please Choose CORRECT Operation!")
+
