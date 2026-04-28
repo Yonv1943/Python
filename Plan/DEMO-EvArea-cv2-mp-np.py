@@ -1,94 +1,114 @@
-import cv2
-import time
-import multiprocessing as mp
-import numpy as np
-import numpy.random as rd
+"""Simple multiprocessing life-area simulation with OpenCV display."""
+
 import itertools
+import multiprocessing as mp
+import time
 
-'''Yonv1943 2018-05-20 10:10:02'''
-
-
-class Information(object):
-    room = 4  # seed room
-    seat = 3  # area seat
-    side = 48  # area side
-    size = 4  # vida multi-processing threading number
-
-    explore = {  # vida, area (x, y)
-        0: np.array([+1, +0]),
-        1: np.array([+0, +1]),
-        2: np.array([-1, +0]),
-        3: np.array([+0, -1]),
-    }
-    '''index'''
-    ib, ig, ir, di = 0, 1, 2, 3  # color: [blue, green, red]
-    li = 0  # life
-    tu = 3  # turn
+import cv2
+import numpy as np
 
 
-i = Information()
-rd.seed(int(time.time()))
+ROOM = 4
+SEAT = 3
+SIDE = 48
+QUEUE_SIZE = 4
+
+INDEX_BLUE = 0
+INDEX_GREEN = 1
+INDEX_RED = 2
+INDEX_END = 3
+INDEX_LIFE = 0
+
+EXPLORE = {
+    0: np.array([1, 0]),
+    1: np.array([0, 1]),
+    2: np.array([-1, 0]),
+    3: np.array([0, -1]),
+}
 
 
-def seed(m1, m2):
-    m2 = m1
-    return m1, m2
+def spread_seed(source, target):
+    """Return updated source and target values."""
+    target = source.copy()
+    return source, target
 
 
-def vida(area):
-    for (x1, y1) in itertools.product(range(1, i.side - 1), range(1, i.side - 1)):
-        if area[x1, y1][i.li] <= 0.0:  # life == 0, continue
+def update_area(area, rng):
+    """Update the simulation area by spreading values to neighbors."""
+    for x_pos, y_pos in itertools.product(range(1, SIDE - 1), range(1, SIDE - 1)):
+        if area[x_pos, y_pos, INDEX_LIFE] <= 0.0:
             continue
 
-        (x2, y2) = i.explore[rd.randint(4)] + (x1, y1)
-        m1, m2 = area[x1, y1], area[x2, y2]
-        m1, m2 = seed(m1, m2)
+        next_x, next_y = EXPLORE[rng.integers(4)] + np.array([x_pos, y_pos])
+        source = area[x_pos, y_pos].copy()
+        target = area[next_x, next_y].copy()
 
-        area[x1, y1], area[x2, y2] = m1, m2
+        source, target = spread_seed(source, target)
+        area[x_pos, y_pos] = source
+        area[next_x, next_y] = target
+
     return area
 
 
-def p_vida(q_img, side):
-    area = np.zeros((side, side, i.seat), dtype=np.float)
+def producer(queue_img, side):
+    """Generate simulation frames and put them into the queue."""
+    rng = np.random.default_rng()
+    area = np.zeros((side, side, SEAT), dtype=float)
 
-    '''plant'''
-    seed_num = int(side ** 2 / i.room ** 2)
-    for (x, y) in rd.randint(low=0, high=i.side, size=(seed_num, 2)):
-        area[x, y] = rd.uniform(low=0.0, high=1.0, size=i.seat)
+    seed_count = int(side ** 2 / ROOM ** 2)
+    seed_positions = rng.integers(low=0, high=side, size=(seed_count, 2))
+
+    for x_pos, y_pos in seed_positions:
+        area[x_pos, y_pos] = rng.uniform(low=0.0, high=1.0, size=SEAT)
 
     while True:
-        area = vida(area)
-        q_img.put(area)
+        area = update_area(area, rng)
+        if not queue_img.full():
+            queue_img.put(area.copy())
 
 
-def p_view(q_img, window_name):
+def viewer(queue_img, window_name):
+    """Display simulation frames with OpenCV."""
     cv2.namedWindow(window_name, flags=cv2.WINDOW_KEEPRATIO)
-    timer0 = time.time()
+    previous_time = time.time()
 
     while True:
-        area = q_img.get()
-        show = np.array(area[:, :, i.ib:i.di])
-        show = np.array(show * (255.0 / np.max(show)), dtype=np.uint8)
-        cv2.imshow(window_name, show)
-        cv2.waitKey(1)
+        area = queue_img.get()
+        show = area[:, :, INDEX_BLUE:INDEX_END]
 
-        timer1 = time.time()
-        print("||| Ave time:", timer1 - timer0)
-        timer0 = timer1
+        max_value = np.max(show)
+        if max_value > 0:
+            show = (show * (255.0 / max_value)).astype(np.uint8)
+        else:
+            show = np.zeros_like(show, dtype=np.uint8)
+
+        cv2.imshow(window_name, show)
+        if cv2.waitKey(1) & 0xFF == 27:
+            break
+
+        current_time = time.time()
+        print(f"||| Ave time: {current_time - previous_time:.6f}")
+        previous_time = current_time
+
+    cv2.destroyAllWindows()
+
 
 def main():
-    mp.set_start_method('spawn')
-    queue_img = mp.Queue(maxsize=4)
+    """Start producer and viewer processes."""
+    queue_img = mp.Queue(maxsize=QUEUE_SIZE)
 
-    process_l = [
-        mp.Process(target=p_vida, args=(queue_img, i.side)),
-        mp.Process(target=p_view, args=(queue_img, 'EvArea')),
+    processes = [
+        mp.Process(target=producer, args=(queue_img, SIDE)),
+        mp.Process(target=viewer, args=(queue_img, "EvArea")),
     ]
 
-    [p.start() for p in process_l]
-    [p.join() for p in process_l]
+    for process in processes:
+        process.start()
+
+    for process in processes:
+        process.join()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
+    mp.set_start_method("spawn")
     main()
-pass
